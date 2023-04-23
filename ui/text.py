@@ -9,9 +9,9 @@ class TextHandler:
         self.font = pygame.font.Font(os.path.join(env.get_main_path(), 'assets', 'fonts', font), px)
         self.px = px
         
-    def render(self, text, color=COL_WHITE, alpha=None):
+    def render(self, text, colour=COL_WHITE, alpha=None):
         """Returns a pygame surface with the passed text in the app font."""
-        text = self.font.render(text, True, color)
+        text = self.font.render(text, True, colour)
         text.set_alpha(alpha) if alpha is not None else None
         return text
 

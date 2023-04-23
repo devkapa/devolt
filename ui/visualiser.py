@@ -19,8 +19,8 @@ class Visualiser:
         self.strands = []
         self.generate_initial_strands()
     
-    def generate_edge(self):
-        edge = random.randint(self.TOP, self.RIGHT)
+    def generate_edge(self, override=None):
+        edge = random.randint(self.TOP, self.RIGHT) if override is None else override
         if edge == self.TOP:
             rand_coord = (random.randint(10, 990), 0)
         elif edge == self.BOTTOM:
@@ -79,8 +79,8 @@ class Strand:
                 return
             self.new_point = (self.new_point[0] + self.angle[1], self.new_point[1] + self.angle[0])
     
-    def end(self):
-        self.enabled = False
+    def end(self, destroy=True):
+        self.enabled = False if destroy else True
         complimentary_angle = (-self.angle[0], -self.angle[1])
         new_angle = random.choice([i for i in self.numbered if i != self.angle and i != complimentary_angle])
         self.parent.add_strand(Strand(self.new_point, new_angle, self.parent, self.numbered))
