@@ -1,15 +1,16 @@
-import random
-
 import pygame
 import os
 import sys
 
+from tkinter import filedialog as fd
 from pygame.locals import SCALED
 from runtime.environment import Environment
 from ui.text import TextHandler
 from ui.colours import *
 from ui.visualiser import Visualiser
 from ui.elements import Button
+
+from protosim.project import Project
 
 
 # Versioning
@@ -28,7 +29,7 @@ ENV = Environment()
 FPS = 60
 
 # Enum values for code readability
-HOME, SIM = 0, 1
+HOME, PROTOSIM = 0, 1
 TOP, LEFT, BOTTOM, RIGHT = 0, 1, 2, 3
 
 # Pygame custom events
@@ -53,6 +54,18 @@ def draw_homepage(win, homepage_title, homepage_version, visualiser, new_button,
 def draw_circuit_graphic(win, visualiser):
     win.fill(COL_BACKGROUND)
     visualiser.draw(win)
+
+
+def draw_sim(win, project):
+    win.fill(COL_BACKGROUND)
+    project.pos = (200, 20)
+    win.blit(project.surface(), project.pos)
+
+
+def open_dev():
+    filetypes = (("de:volt Project", "*.dev"),)
+    file = fd.askopenfile(title="Open de:volt Project", initialdir=ENV.get_main_path(), filetypes=filetypes)
+    return file
 
 
 def main():
@@ -85,9 +98,9 @@ def main():
 
     # HOMEPAGE ELEMENTS
     # Buttons
-    new_button = Button((150, 60), ((WIDTH/2)-75, (HEIGHT/2) - 20), 'plus.png', "New", NEW_PROJECT_EVENT)
-    open_button = Button((150, 60), ((WIDTH/2)-75, (HEIGHT/2) + 60), 'open.png', "Open", OPEN_PROJECT_EVENT)
-    exit_button = Button((150, 60), ((WIDTH/2)-75, (HEIGHT/2) + 140), 'exit.png', "Exit", EXIT_EVENT)
+    new_button = Button((220, 60), ((WIDTH/2)-110, (HEIGHT/2) - 20), 'plus.png', "New Project", NEW_PROJECT_EVENT)
+    open_button = Button((220, 60), ((WIDTH/2)-110, (HEIGHT/2) + 60), 'open.png', "Open Project", OPEN_PROJECT_EVENT)
+    exit_button = Button((220, 60), ((WIDTH/2)-110, (HEIGHT/2) + 140), 'exit.png', "Exit", EXIT_EVENT)
 
     # Pre-rendered text
     homepage_title = title_handler.render_shadow("de:volt", shadow_colour=COL_TITLE, colour=COL_TITLE_SHADOW)
@@ -95,6 +108,8 @@ def main():
 
     # Circuit visualiser for homepage
     visualiser = Visualiser()
+
+    project = Project(WIDTH - 200, HEIGHT - 20)
 
     while running:
 
@@ -112,14 +127,21 @@ def main():
             if current_state == HOME:
 
                 if event.type == NEW_PROJECT_EVENT:
-                    print("New project")
+                    current_state = PROTOSIM
 
                 if event.type == OPEN_PROJECT_EVENT:
-                    print("Open project")
+                    print(open_dev().readlines())
 
                 if event.type == EXIT_EVENT:
                     pygame.quit()
                     sys.exit()
+
+            if current_state == PROTOSIM:
+
+                if event.type == pygame.MOUSEWHEEL:
+                    if event.y:
+                        if project.last_surface.get_rect(topleft=(200, 0)).collidepoint(pygame.mouse.get_pos()):
+                            project.scale(event.y*2)
 
         # Display the page corresponding to the program state
         if current_state == HOME:
@@ -136,8 +158,8 @@ def main():
             else:
                 pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_HAND)
         
-        if current_state == SIM:
-            pass
+        if current_state == PROTOSIM:
+            draw_sim(win, project)
         
         pygame.display.update()
     

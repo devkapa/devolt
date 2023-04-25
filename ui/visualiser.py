@@ -5,10 +5,10 @@ from ui.colours import COL_CIRCUIT_VISUALISER, COL_BACKGROUND
 
 class Visualiser:
     INITIAL_ANGLES = ((2, 0), (0, 2), (-2, 0), (0, -2))
-    TOP_ANGLES = [(1, -2), (1, -1), (2, -1), (2, 0), (2, 1), (1, 1), (1, 2)]
-    BOTTOM_ANGLES = [(-1, 2), (-1, 1), (-2, 1), (-2, 0), (-2, -1), (-1, -1), (-1, -2)]
-    LEFT_ANGLES = [(0, 2), (-1, 2), (-1, 1), (-2, 1), (2, 1), (1, 1), (1, 2)]
-    RIGHT_ANGLES = [(-2, -1), (-1, -1),  (-1, -2), (0, -2), (1, -2), (1, -1), (2, -1)]
+    TOP_ANGLES = [(1, -1), (2, 0), (1, 1)]
+    BOTTOM_ANGLES = [(-1, 1), (-2, 0), (-1, -1)]
+    LEFT_ANGLES = [(0, 2), (-1, 1), (1, 1)]
+    RIGHT_ANGLES = [(-1, -1), (0, -2), (1, -1)]
     NUMBERED_ANGLES = [TOP_ANGLES, LEFT_ANGLES, BOTTOM_ANGLES, RIGHT_ANGLES]
 
     TOP, LEFT, BOTTOM, RIGHT = 0, 1, 2, 3
@@ -33,7 +33,7 @@ class Visualiser:
     
     def generate_initial_strands(self):
         self.strands.clear()
-        for _ in range(4):
+        for _ in range(1):
             edge, rand_coord = self.generate_edge()
             initial_strand = Strand(rand_coord, self.INITIAL_ANGLES[edge], self, self.NUMBERED_ANGLES[edge])
             self.strands.append(initial_strand)

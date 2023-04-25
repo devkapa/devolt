@@ -1,4 +1,5 @@
 .fleet/
+.idea/
 env/
 ui/__pycache__
 runtime/__pycache__
