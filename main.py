@@ -20,13 +20,16 @@ version = "0.0.1"
 flags = SCALED
 
 # Size constants
-WIDTH, HEIGHT = 1000, 700
+WIDTH, HEIGHT = 1200, 800
+SIDEBAR_WIDTH = 300
+ACTION_BAR_HEIGHT = 50
 
 # Determine execution environment
 ENV = Environment()
 
 # Frames per second constant
-FPS = 60
+HOME_FPS = 60
+PROTOSIM_FPS = 120
 
 # Enum values for code readability
 HOME, PROTOSIM = 0, 1
@@ -55,13 +58,13 @@ def draw_homepage(win, homepage_title, homepage_version, visualiser, buttons, bu
 
 
 def draw_circuit_graphic(win, visualiser):
-    win.fill(COL_BACKGROUND)
+    win.fill(COL_HOME_BKG)
     visualiser.draw(win)
 
 
 def draw_sim(win, project):
-    win.fill(COL_BACKGROUND)
-    project.pos = (200, 20)
+    win.fill(COL_HOME_BKG)
+    project.pos = (SIDEBAR_WIDTH, ACTION_BAR_HEIGHT)
     win.blit(project.surface(), project.pos)
 
 
@@ -90,6 +93,7 @@ def main():
     # Initialise pygame's clock and start the game loop
     clock = pygame.time.Clock()
     running = True
+    fps = HOME_FPS
 
     # Set the initial state to the title screen
     current_state = HOME
@@ -107,18 +111,18 @@ def main():
     buttons = [new_button, open_button, exit_button]
 
     # Pre-rendered text
-    home_title = title_handler.render_shadow("de:volt", shadow_colour=COL_TITLE, colour=COL_TITLE_SHADOW)
-    home_version = version_text_handler.render_shadow(f"{version}", shadow_colour=COL_TITLE, colour=COL_TITLE_SHADOW)
+    home_title = title_handler.render_shadow("de:volt", shadow_colour=COL_HOME_TITLE, colour=COL_HOME_SHADOW)
+    home_version = version_text_handler.render_shadow(version, shadow_colour=COL_HOME_TITLE, colour=COL_HOME_SHADOW)
 
     # Circuit visualiser for homepage
-    visualiser = Visualiser()
+    visualiser = Visualiser(WIDTH, HEIGHT)
 
-    project = Project(WIDTH - 200, HEIGHT - 20)
+    project = Project(WIDTH - SIDEBAR_WIDTH, HEIGHT - ACTION_BAR_HEIGHT)
 
     while running:
 
-        # Limit the loop to run only 60 times per second
-        clock.tick(FPS)
+        # Limit the loop to run at the frame tick rate
+        clock.tick(fps)
 
         # Check for new events 
         for event in pygame.event.get():
@@ -131,6 +135,7 @@ def main():
             if current_state == HOME:
 
                 if event.type == NEW_PROJECT_EVENT:
+                    fps = PROTOSIM_FPS
                     current_state = PROTOSIM
 
                 if event.type == OPEN_PROJECT_EVENT:
@@ -144,12 +149,13 @@ def main():
 
                 if event.type == pygame.MOUSEWHEEL:
                     if event.y:
-                        if project.last_surface.get_rect(topleft=(200, 0)).collidepoint(pygame.mouse.get_pos()):
+                        if project.last_surface.get_rect(topleft=project.pos).collidepoint(pygame.mouse.get_pos()):
                             project.scale(event.y*2)
 
         # Display the page corresponding to the program state
         if current_state == HOME:
 
+            pygame.display.set_caption(f"Home • de:volt")
             draw_homepage(win, home_title, home_version, visualiser, buttons, button_text_handler)
 
             if not new_button.hovering and not open_button.hovering and not exit_button.hovering:
@@ -158,6 +164,8 @@ def main():
                 pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_HAND)
         
         if current_state == PROTOSIM:
+
+            pygame.display.set_caption(f"{project.display_name} • de:volt")
             draw_sim(win, project)
         
         pygame.display.update()

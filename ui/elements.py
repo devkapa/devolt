@@ -1,11 +1,12 @@
 import os
 import pygame
+
 from runtime.environment import Environment
 from ui.colours import *
 
 
-# Fill all pixels of the surface with color, preserve transparency.
 def fill(surface, color):
+    """Fill all pixels of the surface with color, preserve transparency."""
     copy = surface.copy()
     width, height = surface.get_size()
     r, g, b = color
@@ -25,7 +26,7 @@ class Button:
         environment_path = Environment().get_main_path()
         icon_path = os.path.join(environment_path, 'assets', 'textures', icon)
         self.icon = pygame.image.load(icon_path).convert_alpha()
-        self.hovered_icon = fill(self.icon, COL_TITLE)
+        self.hovered_icon = fill(self.icon, COL_HOME_TITLE)
         self.label = label
         self.event = event
         self.rect = pygame.Rect(pos, size)
@@ -45,9 +46,9 @@ class Button:
             self.hovering = False
         
     def draw(self, win, text_handler):
-        colour = COL_TITLE if self.hovering else COL_TITLE_SHADOW
+        colour = COL_HOME_TITLE if self.hovering else COL_HOME_SHADOW
         pygame.draw.rect(win, colour, self.rect.move(2, 2), border_radius=16)
-        pygame.draw.rect(win, COL_TITLE_SHADOW if self.hovering else COL_TITLE, self.rect, border_radius=16)
+        pygame.draw.rect(win, COL_HOME_SHADOW if self.hovering else COL_HOME_TITLE, self.rect, border_radius=16)
         label_surface, label_shadow = text_handler.render_shadow(self.label, shadow_colour=colour, colour=COL_WHITE)
         combined_width = (label_surface.get_width() + self.icon.get_width() + 10)/2
         starting_x = self.pos[0] + (self.size[0]/2) - combined_width

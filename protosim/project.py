@@ -17,6 +17,7 @@ class Project:
         self.last_surface = None
         self.last_mouse_pos = None
         self.pos = (0, 0)
+        self.display_name = "Untitled.dev"
 
     def shift(self, x, y):
         self.offset_x += x
@@ -63,42 +64,27 @@ class Project:
                     point = (math.floor(relative_mouse[0]/self.zoom), math.floor(relative_mouse[1]/self.zoom))
                     x, y = self.convert_point(point)
                     box = pygame.Rect(x, y, self.zoom, self.zoom)
-                    pygame.draw.rect(win, COL_SIMULATOR_GRIDLINES, box)
+                    pygame.draw.rect(win, COL_SIM_GRIDLINES, box)
 
             else:
                 pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_ARROW)
 
-    def gridlines(self, win):
-        accumulated = 0
-        sign = 0
-        while True:
-            accumulated += self.zoom if not sign else -self.zoom
-            new_x = self.origin[0] + accumulated
-            if (new_x > self.width and not sign) or (new_x < 0 and sign):
-                if not sign:
-                    sign = ~sign
-                    continue
-                break
-            pygame.draw.aaline(win, COL_SIMULATOR_GRIDLINES, (new_x, 0), (new_x, self.height))
-        accumulated = 0
-        sign = 0
-        while True:
-            accumulated += self.zoom if not sign else -self.zoom
-            new_y = self.origin[1] + accumulated
-            if (new_y > self.height and not sign) or (new_y < 0 and sign):
-                if not sign:
-                    sign = ~sign
-                    continue
-                break
-            pygame.draw.aaline(win, COL_SIMULATOR_GRIDLINES, (0, new_y), (self.width, new_y))
+    def gridlines(self, win, axis):
+        current_line = 0
+        while abs(current_line-self.origin[axis]) % self.zoom != 0:
+            current_line += 1
+        while current_line <= (self.height if axis else self.width):
+            start_coord = (0, current_line) if axis else (current_line, 0)
+            end_coord = (self.width, current_line) if axis else (current_line, self.height)
+            pygame.draw.line(win, COL_SIM_GRIDLINES, start_coord, end_coord)
+            current_line += self.zoom
 
     def surface(self):
         win = pygame.Surface((self.width, self.height))
-        win.fill(COL_SIMULATOR)
+        win.fill(COL_SIM_BKG)
         self.listen(win)
         self.origin = (10 + self.offset_x, 10 + self.offset_y)
-        pygame.draw.line(win, COL_SIMULATOR_GRIDLINES, (self.origin[0], 0), (self.origin[0], self.height), width=2)
-        pygame.draw.line(win, COL_SIMULATOR_GRIDLINES, (0, self.origin[1]), (self.width, self.origin[1]), width=2)
-        self.gridlines(win)
+        self.gridlines(win, 0)
+        self.gridlines(win, 1)
         self.last_surface = win
         return win

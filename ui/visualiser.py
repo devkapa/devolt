@@ -1,6 +1,6 @@
 import random
 import pygame.draw
-from ui.colours import COL_CIRCUIT_VISUALISER, COL_BACKGROUND
+from ui.colours import COL_VISUALISER_STRAND, COL_HOME_BKG
 
 
 class Visualiser:
@@ -15,20 +15,21 @@ class Visualiser:
     
     strands: list
 
-    def __init__(self):
+    def __init__(self, width, height):
+        self.width, self.height = width, height
         self.strands = []
         self.generate_initial_strands()
     
     def generate_edge(self, override=None):
         edge = random.randint(self.TOP, self.RIGHT) if override is None else override
         if edge == self.TOP:
-            rand_coord = (random.randint(10, 990), 0)
+            rand_coord = (random.randint(10, self.width - 10), 0)
         elif edge == self.BOTTOM:
-            rand_coord = (random.randint(10, 990), 700)
+            rand_coord = (random.randint(10, self.width - 10), self.height)
         elif edge == self.RIGHT:
-            rand_coord = (1000, random.randint(10, 690))
+            rand_coord = (self.width, random.randint(10, self.height - 10))
         else:
-            rand_coord = (0, random.randint(10, 690))
+            rand_coord = (0, random.randint(10, self.height - 10))
         return edge, rand_coord
     
     def generate_initial_strands(self):
@@ -66,10 +67,10 @@ class Strand:
         
     def grow(self):
         if self.enabled:
-            if self.new_point[0] + self.angle[1] < 0 or self.new_point[0] + self.angle[1] > 1000:
+            if self.new_point[0] + self.angle[1] < 0 or self.new_point[0] + self.angle[1] > self.parent.width:
                 self.restart()
                 return
-            if self.new_point[1] + self.angle[0] < 0 or self.new_point[1] + self.angle[0] > 700:
+            if self.new_point[1] + self.angle[0] < 0 or self.new_point[1] + self.angle[0] > self.parent.height:
                 self.restart()
                 return
             distance_travelled = tuple(map(lambda i, j: abs(i - j), self.starting_point, self.new_point))
@@ -92,8 +93,8 @@ class Strand:
         self.parent.add_strand(new_strand)
 
     def draw_line(self, win):
-        pygame.draw.aaline(win, COL_CIRCUIT_VISUALISER, self.starting_point, self.new_point)
+        pygame.draw.aaline(win, COL_VISUALISER_STRAND, self.starting_point, self.new_point)
     
     def draw_circle(self, win):
-        pygame.draw.circle(win, COL_CIRCUIT_VISUALISER, self.new_point, 10, width=4)
-        pygame.draw.circle(win, COL_BACKGROUND, self.new_point, 6)
+        pygame.draw.circle(win, COL_VISUALISER_STRAND, self.new_point, 10, width=4)
+        pygame.draw.circle(win, COL_HOME_BKG, self.new_point, 6)
