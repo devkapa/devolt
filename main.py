@@ -38,17 +38,20 @@ OPEN_PROJECT_EVENT = pygame.USEREVENT + 2
 EXIT_EVENT = pygame.USEREVENT + 3
 
 
-def draw_homepage(win, homepage_title, homepage_version, visualiser, new_button, open_button, exit_button, button_text_handler):
+def draw_homepage(win, homepage_title, homepage_version, visualiser, buttons, button_text_handler):
     draw_circuit_graphic(win, visualiser)
-    title_surface, title_shadow = homepage_title
-    win.blit(title_shadow, ((WIDTH/2) - title_shadow.get_width()/2 + 2, HEIGHT/2 - 140 + 2))
-    win.blit(title_surface, ((WIDTH/2) - title_surface.get_width()/2, HEIGHT/2 - 140))
-    version_surface, version_shadow = homepage_version
-    win.blit(version_shadow, ((WIDTH/2) + (title_surface.get_width()/2) - version_surface.get_width() + 1, HEIGHT/2 - 150 + title_shadow.get_height() + 1))
-    win.blit(version_surface, ((WIDTH/2) + (title_surface.get_width()/2) - version_surface.get_width(), HEIGHT/2 - 150 + title_surface.get_height()))
-    new_button.draw(win, button_text_handler)
-    open_button.draw(win, button_text_handler)
-    exit_button.draw(win, button_text_handler)
+    title_text, title_shadow = homepage_title
+    title_coords = ((WIDTH/2) - title_text.get_width()/2, HEIGHT/2 - 140)
+    win.blit(title_shadow, tuple(x + 2 for x in title_coords))
+    win.blit(title_text, title_coords)
+    version_text, version_shadow = homepage_version
+    version_x = WIDTH/2 + title_text.get_width()/2 - version_text.get_width()
+    version_y = HEIGHT/2 + title_text.get_height() - 150
+    win.blit(version_shadow, tuple(x + 1 for x in (version_x, version_y)))
+    win.blit(version_text, (version_x, version_y))
+    for button in buttons:
+        button.draw(win, button_text_handler)
+        button.listen()
 
 
 def draw_circuit_graphic(win, visualiser):
@@ -101,10 +104,11 @@ def main():
     new_button = Button((220, 60), ((WIDTH/2)-110, (HEIGHT/2) - 20), 'plus.png', "New Project", NEW_PROJECT_EVENT)
     open_button = Button((220, 60), ((WIDTH/2)-110, (HEIGHT/2) + 60), 'open.png', "Open Project", OPEN_PROJECT_EVENT)
     exit_button = Button((220, 60), ((WIDTH/2)-110, (HEIGHT/2) + 140), 'exit.png', "Exit", EXIT_EVENT)
+    buttons = [new_button, open_button, exit_button]
 
     # Pre-rendered text
-    homepage_title = title_handler.render_shadow("de:volt", shadow_colour=COL_TITLE, colour=COL_TITLE_SHADOW)
-    homepage_version = version_text_handler.render_shadow(f"{version}", shadow_colour=COL_TITLE, colour=COL_TITLE_SHADOW)
+    home_title = title_handler.render_shadow("de:volt", shadow_colour=COL_TITLE, colour=COL_TITLE_SHADOW)
+    home_version = version_text_handler.render_shadow(f"{version}", shadow_colour=COL_TITLE, colour=COL_TITLE_SHADOW)
 
     # Circuit visualiser for homepage
     visualiser = Visualiser()
@@ -146,12 +150,7 @@ def main():
         # Display the page corresponding to the program state
         if current_state == HOME:
 
-            draw_homepage(win, homepage_title, homepage_version, visualiser, new_button, open_button, exit_button, button_text_handler)
-
-            # Handle button events
-            new_button.listen()
-            open_button.listen()
-            exit_button.listen()
+            draw_homepage(win, home_title, home_version, visualiser, buttons, button_text_handler)
 
             if not new_button.hovering and not open_button.hovering and not exit_button.hovering:
                 pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_ARROW)

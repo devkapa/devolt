@@ -1,6 +1,7 @@
 import math
-
 import pygame
+
+from operator import sub
 from ui.colours import *
 
 
@@ -50,7 +51,8 @@ class Project:
                 if pygame.mouse.get_pressed()[1]:
                     self.panning = True
                     pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_CROSSHAIR)
-                    self.shift(pygame.mouse.get_pos()[0] - self.last_mouse_pos[0], pygame.mouse.get_pos()[1] - self.last_mouse_pos[1])
+                    mouse_change = tuple(map(sub, pygame.mouse.get_pos(), self.last_mouse_pos))
+                    self.shift(mouse_change[0], mouse_change[1])
                     self.last_mouse_pos = pygame.mouse.get_pos()
                 else:
                     self.panning = False
@@ -62,7 +64,6 @@ class Project:
                     x, y = self.convert_point(point)
                     box = pygame.Rect(x, y, self.zoom, self.zoom)
                     pygame.draw.rect(win, COL_SIMULATOR_GRIDLINES, box)
-
 
             else:
                 pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_ARROW)
@@ -101,8 +102,3 @@ class Project:
         self.gridlines(win)
         self.last_surface = win
         return win
-
-
-
-
-

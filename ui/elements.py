@@ -45,14 +45,17 @@ class Button:
             self.hovering = False
         
     def draw(self, win, text_handler):
-        pygame.draw.rect(win, COL_TITLE if self.hovering else COL_TITLE_SHADOW, self.rect.move(2, 2), border_radius=16)
+        colour = COL_TITLE if self.hovering else COL_TITLE_SHADOW
+        pygame.draw.rect(win, colour, self.rect.move(2, 2), border_radius=16)
         pygame.draw.rect(win, COL_TITLE_SHADOW if self.hovering else COL_TITLE, self.rect, border_radius=16)
-        label_surface, label_shadow = text_handler.render_shadow(self.label, shadow_colour=COL_TITLE if self.hovering else COL_TITLE_SHADOW, colour=COL_WHITE)
+        label_surface, label_shadow = text_handler.render_shadow(self.label, shadow_colour=colour, colour=COL_WHITE)
         combined_width = (label_surface.get_width() + self.icon.get_width() + 10)/2
         starting_x = self.pos[0] + (self.size[0]/2) - combined_width
         starting_y = self.pos[1] + (self.size[1]/2)
-        win.blit(self.hovered_icon if self.hovering else self.icon, (starting_x, starting_y - (self.icon.get_height()/2)))
-        win.blit(label_shadow, (starting_x + self.icon.get_width() + 10 + 1, starting_y - (label_surface.get_height()/2) + 1))
-        win.blit(label_surface, (starting_x + self.icon.get_width() + 10, starting_y - (label_surface.get_height()/2)))
+        icon_coords = (starting_x, starting_y - (self.icon.get_height()/2))
+        label_coords = (starting_x + self.icon.get_width() + 10, starting_y - (label_surface.get_height()/2))
+        win.blit(self.hovered_icon if self.hovering else self.icon, icon_coords)
+        win.blit(label_shadow, tuple(x + 1 for x in label_coords))
+        win.blit(label_surface, label_coords)
         
         

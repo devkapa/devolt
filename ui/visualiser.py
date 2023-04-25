@@ -27,7 +27,7 @@ class Visualiser:
             rand_coord = (random.randint(10, 990), 700)
         elif edge == self.RIGHT:
             rand_coord = (1000, random.randint(10, 690))
-        elif edge == self.LEFT:
+        else:
             rand_coord = (0, random.randint(10, 690))
         return edge, rand_coord
     
@@ -88,7 +88,8 @@ class Strand:
     def restart(self):
         self.enabled = False
         edge, rand_coord = self.parent.generate_edge()
-        self.parent.add_strand(Strand(rand_coord, Visualiser.INITIAL_ANGLES[edge], self.parent, Visualiser.NUMBERED_ANGLES[edge]))
+        new_strand = Strand(rand_coord, Visualiser.INITIAL_ANGLES[edge], self.parent, Visualiser.NUMBERED_ANGLES[edge])
+        self.parent.add_strand(new_strand)
 
     def draw_line(self, win):
         pygame.draw.aaline(win, COL_CIRCUIT_VISUALISER, self.starting_point, self.new_point)

@@ -35,7 +35,7 @@ class TextHandler:
             if split_section.startswith("col."):
                 current_colour = eval(split_section[4:])
                 continue
-            split_text = self.render(split_section, color=current_colour)
+            split_text = self.render(split_section, colour=current_colour)
             master_surface.blit(split_text, (x_accumulated, 0))
             x_accumulated += split_text.get_width()
         return master_surface
