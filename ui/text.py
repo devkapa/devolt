@@ -23,6 +23,30 @@ class TextHandler:
         text_shadow.set_alpha(alpha) if alpha is not None else None
         return text_main, text_shadow
 
+    def render_multiline(self, text, width, colour=COL_WHITE):
+        """Returns text surface(s) that are split based on the given length"""
+        text_main = self.font.render(text, True, colour)
+        if text_main.get_width() > width:
+            finished_lines = []
+            current_line = ""
+            height = 0
+            for word in text.split(" "):
+                test_line = current_line + f"{word} "
+                test_text = self.font.render(test_line, True, colour)
+                if test_text.get_width() > width:
+                    previous_line = self.font.render(current_line, True, colour)
+                    finished_lines.append(previous_line)
+                    height += previous_line.get_height() + 5
+                    current_line = f"{word} "
+                    continue
+                current_line += f"{word} "
+            previous_line = self.font.render(current_line, True, colour)
+            finished_lines.append(previous_line)
+            height += previous_line.get_height() + 5
+            return finished_lines, height
+        else:
+            return [text_main], text_main.get_height()
+
     def render_coloured(self, text, colour=COL_WHITE):
         """Returns text surface(s) that are coloured separately."""
         dummy_text = self.render(text)

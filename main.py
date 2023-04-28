@@ -11,6 +11,7 @@ from ui.text import TextHandler
 from ui.colours import *
 from ui.visualiser import Visualiser
 from ui.elements import Button, ElementManager
+from ui.interface import TabbedMenu
 
 from protosim.project import Project
 
@@ -22,8 +23,8 @@ version = "0.0.1"
 flags = SCALED
 
 # Size constants
-WIDTH, HEIGHT = 1200, 800
-SIDEBAR_WIDTH = 300
+WIDTH, HEIGHT = 1300, 800
+SIDEBAR_WIDTH = 320
 ACTION_BAR_HEIGHT = 60
 
 # Determine execution environment
@@ -46,7 +47,7 @@ REDO_EVENT = pygame.USEREVENT + 5
 SAVE_EVENT = pygame.USEREVENT + 6
 HOME_EVENT = pygame.USEREVENT + 7
 MENU_EVENT = pygame.USEREVENT + 8
-EDIT_EVENT = pygame.USEREVENT + 8
+EDIT_EVENT = pygame.USEREVENT + 9
 
 
 def draw_homepage(win, homepage_title, homepage_version, visualiser, buttons):
@@ -68,7 +69,7 @@ def draw_circuit_graphic(win, visualiser):
     visualiser.draw(win)
 
 
-def draw_sim(win, sidebar_width, project, buttons, title):
+def draw_sim(win, sidebar_width, project, buttons, title, sidebar):
     win.fill(COL_HOME_BKG)
     project.set_size(width=WIDTH-sidebar_width)
     action_text, action_shadow = title
@@ -78,6 +79,9 @@ def draw_sim(win, sidebar_width, project, buttons, title):
     project.pos = (sidebar_width, ACTION_BAR_HEIGHT)
     win.blit(project.surface(), project.pos)
     buttons.draw(win)
+    if sidebar_width > 0:
+        win.blit(sidebar.surface(), (0, ACTION_BAR_HEIGHT))
+        sidebar.listen()
 
 
 def open_dev():
@@ -135,6 +139,10 @@ def main():
     sidebar_width = SIDEBAR_WIDTH
     project = Project(WIDTH - sidebar_width, HEIGHT - ACTION_BAR_HEIGHT)
 
+    # Sidebar
+    sidebar_tabs = {'Boards': [], 'ICs': [], 'Electronics': []}
+    sidebar = TabbedMenu((sidebar_width, HEIGHT - ACTION_BAR_HEIGHT), 30, sidebar_tabs, (0, ACTION_BAR_HEIGHT))
+
     # Pre-rendered text
     action_bar_title = action_text_handler.render_shadow(project.display_name)
     edit_title = WIDTH/2 + action_bar_title[0].get_width()/2 + 10
@@ -149,8 +157,8 @@ def main():
     redo_button = Button(button_size, (WIDTH - 20 - 2*button_dimensions, button_y), 'redo.png', 'Redo', REDO_EVENT)
     undo_button = Button(button_size, (WIDTH - 30 - 3*button_dimensions, button_y), 'undo.png', 'Undo', UNDO_EVENT)
     save_button = Button(button_size, (WIDTH - 10 - button_dimensions, button_y), 'save.png', 'Save', SAVE_EVENT)
-    sim_buttons = [project, undo_button, redo_button, save_button, home_button, menu_button, edit_button]
-    sim_button_manager = ElementManager(sim_buttons, version_handler)
+    sim_elements = [project, sidebar, undo_button, redo_button, save_button, home_button, menu_button, edit_button]
+    sim_manager = ElementManager(sim_elements, version_handler)
 
     while running:
 
@@ -186,6 +194,15 @@ def main():
                     if event.y:
                         if project.last_surface.get_rect(topleft=project.pos).collidepoint(pygame.mouse.get_pos()):
                             project.scale(event.y*2)
+                        for element_list in sidebar.lists:
+                            if element_list.surface().get_rect(topleft=element_list.pos).collidepoint(pygame.mouse.get_pos()):
+                                element_list.scroll(-event.y*20)
+
+                if event.type == MENU_EVENT:
+                    if sidebar_width > 0:
+                        sidebar_width = 0
+                    else:
+                        sidebar_width = SIDEBAR_WIDTH
 
         # Display the page corresponding to the program state
         if current_state == HOME:
@@ -195,16 +212,13 @@ def main():
 
             if not home_button_manager.hovered:
                 pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_ARROW)
-            else:
-                pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_HAND)
         
         if current_state == PROTOSIM:
 
-            sidebar_width = 0
             pygame.display.set_caption(f"{project.display_name} • de:volt")
-            draw_sim(win, sidebar_width, project, sim_button_manager, action_bar_title)
+            draw_sim(win, sidebar_width, project, sim_manager, action_bar_title, sidebar)
 
-            if not sim_button_manager.hovered:
+            if not sim_manager.hovered:
                 pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_ARROW)
         
         pygame.display.update()

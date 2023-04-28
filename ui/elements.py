@@ -33,9 +33,13 @@ class ElementManager:
                 element.listen()
                 if element.hovering:
                     hovered = True
+                continue
             if isinstance(element, Project):
                 if element.panning:
                     hovered = True
+                continue
+            if element.hovering:
+                hovered = True
         self.hovered = hovered
 
 
@@ -54,9 +58,14 @@ class Button:
         self.rect = pygame.Rect(pos, size)
         self.clicked = False
         
-    def listen(self):
+    def listen(self, top_left=None):
         mouse_pos = pygame.mouse.get_pos()
-        if self.rect.collidepoint(mouse_pos):
+        if top_left is not None:
+            rect = self.rect.copy()
+            rect.topleft = top_left
+        else:
+            rect = self.rect
+        if rect.collidepoint(mouse_pos):
             self.hovering = True
             pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_HAND)
             if pygame.mouse.get_pressed()[0]:
