@@ -33,7 +33,8 @@ class TabbedMenu:
 
             # TEMPORARY
             list_size = (self.size[0], self.size[1] - 10 - tab_height)
-            description = "Here is a description of the tab that is currently open."
+            description = "Here is a description of the tab that is currently open. It is another" \
+                          " long, multi-lined description that can provide a ton of information."
             self.lists.append(List(list_size, title, description, [], tuple(map(sum, zip(self.pos, self.list_pos)))))
 
             accumulated += rect.w + 5
@@ -92,11 +93,12 @@ class List:
         self.pos = pos
         self.list_items = list_items
         self.list_title_handler = TextHandler(env, 'Play-Regular.ttf', 25)
-        self.desc_handler = TextHandler(env, 'Play-Regular.ttf', 15)
+        desc_handler = TextHandler(env, 'Play-Regular.ttf', 15)
+        self.desc = desc_handler.render_multiline(desc, self.size[0] - 20, colour=COL_BLACK)
         self.scroll_up = pygame.Rect(self.size[0] - 20, 0, 20, 20)
         self.scroll_down = pygame.Rect(self.size[0] - 20, self.size[1] - 20, 20, 20)
         self.scroll_bar = pygame.Rect(self.size[0] - 20, 20, 20, self.size[1] - 40)
-        self.scroller = pygame.Rect(self.size[0] - 16, 24, 12, 163)
+        self.scroller = pygame.Rect(self.size[0] - 16, 24, 12, 1)
         scroll_arrow = pygame.image.load(os.path.join(env.get_main_path(), 'assets', 'textures', 'arrow.png'))
         self.scroll_up_img = pygame.transform.scale(scroll_arrow, (16, 16))
         self.scroll_down_img = pygame.transform.flip(self.scroll_up_img, False, True)
@@ -126,14 +128,21 @@ class List:
         title_coords = (10, 10)
         surface.blit(title_shadow, tuple(x + 1 for x in title_coords))
         surface.blit(title_surface, title_coords)
+        desc_coords = (10, 15 + title_surface.get_height())
+        multi_line = 0
+        for line in self.desc[0]:
+            surface.blit(line, (desc_coords[0], desc_coords[1] + multi_line))
+            multi_line += line.get_height() + 5
         pygame.draw.rect(surface, COL_HOME_BKG, self.scroll_up)
         pygame.draw.rect(surface, COL_HOME_BKG, self.scroll_down)
         pygame.draw.rect(surface, COL_SIM_GRIDLINES, self.scroll_bar)
         surface.blit(self.scroll_up_img, (self.size[0] - 18, 2))
         surface.blit(self.scroll_down_img, (self.size[0] - 18, self.size[1] - 18))
-        accumulated = 10 + title_surface.get_height() + 10
+        accumulated = 10 + title_surface.get_height() + self.desc[1] + 10
         for item in self.list_items:
             surface.blit(item.surface(), (0, accumulated - self.scroll_offset))
+            rect = (0, accumulated - self.scroll_offset + item.size[1])
+            pygame.draw.rect(surface, COL_TABBED_BAR, pygame.Rect(rect, (item.size[0], 10)))
             accumulated += item.size[1] + 10
         if accumulated > self.size[1]:
             self.overflow = abs(accumulated - self.size[1])
@@ -158,15 +167,15 @@ class ListItem:
         self.desc = desc_handler.render_multiline(desc, self.size[0] - self.image.get_width() - 20, colour=COL_BLACK)
         self.element = element
         button_size = ((2/3)*self.size[0] - 30, 40)
-        self.size = (self.size[0], 15 + self.title.get_height() + 15 + self.desc[1] + button_size[1])
-        self.button_pos = (self.size[0]/3 + 20, self.size[1] - button_size[1] - 5)
+        self.size = (self.size[0], 15 + self.title.get_height() + 25 + self.desc[1] + button_size[1])
+        self.button_pos = (self.size[0]/3 + 20, self.size[1] - button_size[1] - 15)
         self.add_button = Button(button_size, self.button_pos, 'plus.png', f'Add {title}', event)
 
     def surface(self):
         surface = pygame.Surface(self.size)
         surface.fill(COL_TABBED_BAR)
-        rect = pygame.Rect((5, 5), (self.size[0] - 10, self.size[1] - 5))
-        pygame.draw.rect(surface, COL_SIM_BKG, rect, border_radius=10)
+        rect = pygame.Rect((5, 5), (self.size[0] - 10, self.size[1] - 10))
+        pygame.draw.rect(surface, COL_SIM_BKG, rect, border_radius=15)
         surface.blit(self.image, (10, 10))
         surface.blit(self.title, (self.image.get_width() + 20, 15))
         accumulated = 0
