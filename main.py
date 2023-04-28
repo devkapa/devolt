@@ -4,11 +4,13 @@ import sys
 
 from tkinter import filedialog as fd
 from pygame.locals import SCALED
+
 from runtime.environment import Environment
+
 from ui.text import TextHandler
 from ui.colours import *
 from ui.visualiser import Visualiser
-from ui.elements import Button
+from ui.elements import Button, ElementManager
 
 from protosim.project import Project
 
@@ -21,8 +23,8 @@ flags = SCALED
 
 # Size constants
 WIDTH, HEIGHT = 1200, 800
-SIDEBAR_WIDTH = 0
-ACTION_BAR_HEIGHT = 50
+SIDEBAR_WIDTH = 300
+ACTION_BAR_HEIGHT = 60
 
 # Determine execution environment
 ENV = Environment()
@@ -39,9 +41,15 @@ TOP, LEFT, BOTTOM, RIGHT = 0, 1, 2, 3
 NEW_PROJECT_EVENT = pygame.USEREVENT + 1
 OPEN_PROJECT_EVENT = pygame.USEREVENT + 2
 EXIT_EVENT = pygame.USEREVENT + 3
+UNDO_EVENT = pygame.USEREVENT + 4
+REDO_EVENT = pygame.USEREVENT + 5
+SAVE_EVENT = pygame.USEREVENT + 6
+HOME_EVENT = pygame.USEREVENT + 7
+MENU_EVENT = pygame.USEREVENT + 8
+EDIT_EVENT = pygame.USEREVENT + 8
 
 
-def draw_homepage(win, homepage_title, homepage_version, visualiser, buttons, button_text_handler):
+def draw_homepage(win, homepage_title, homepage_version, visualiser, buttons):
     draw_circuit_graphic(win, visualiser)
     title_text, title_shadow = homepage_title
     title_coords = ((WIDTH/2) - title_text.get_width()/2, HEIGHT/2 - 140)
@@ -52,9 +60,7 @@ def draw_homepage(win, homepage_title, homepage_version, visualiser, buttons, bu
     version_y = HEIGHT/2 + title_text.get_height() - 150
     win.blit(version_shadow, tuple(x + 1 for x in (version_x, version_y)))
     win.blit(version_text, (version_x, version_y))
-    for button in buttons:
-        button.draw(win, button_text_handler)
-        button.listen()
+    buttons.draw(win)
 
 
 def draw_circuit_graphic(win, visualiser):
@@ -62,14 +68,16 @@ def draw_circuit_graphic(win, visualiser):
     visualiser.draw(win)
 
 
-def draw_sim(win, project, action_handler):
+def draw_sim(win, sidebar_width, project, buttons, title):
     win.fill(COL_HOME_BKG)
-    action_text, action_shadow = action_handler.render_shadow(project.display_name)
-    action_coords = (WIDTH/2 - action_text.get_width()/2, 10)
+    project.set_size(width=WIDTH-sidebar_width)
+    action_text, action_shadow = title
+    action_coords = (WIDTH/2 - action_text.get_width()/2, ACTION_BAR_HEIGHT/2 - action_text.get_height()/2)
     win.blit(action_shadow, tuple(x + 1 for x in action_coords))
     win.blit(action_text, action_coords)
-    project.pos = (SIDEBAR_WIDTH, ACTION_BAR_HEIGHT)
+    project.pos = (sidebar_width, ACTION_BAR_HEIGHT)
     win.blit(project.surface(), project.pos)
+    buttons.draw(win)
 
 
 def open_dev():
@@ -112,7 +120,8 @@ def main():
     new_button = Button((220, 60), ((WIDTH/2)-110, (HEIGHT/2) - 20), 'plus.png', "New Project", NEW_PROJECT_EVENT)
     open_button = Button((220, 60), ((WIDTH/2)-110, (HEIGHT/2) + 60), 'open.png', "Open Project", OPEN_PROJECT_EVENT)
     exit_button = Button((220, 60), ((WIDTH/2)-110, (HEIGHT/2) + 140), 'exit.png', "Exit", EXIT_EVENT)
-    buttons = [new_button, open_button, exit_button]
+    home_buttons = [new_button, open_button, exit_button]
+    home_button_manager = ElementManager(home_buttons, button_text_handler)
 
     # Pre-rendered text
     home_title = title_handler.render_shadow("de:volt", shadow_colour=COL_HOME_TITLE, colour=COL_HOME_SHADOW)
@@ -121,7 +130,27 @@ def main():
     # Circuit visualiser for homepage
     visualiser = Visualiser(WIDTH, HEIGHT)
 
-    project = Project(WIDTH - SIDEBAR_WIDTH, HEIGHT - ACTION_BAR_HEIGHT)
+    # SIMULATOR ELEMENTS
+    # Project
+    sidebar_width = SIDEBAR_WIDTH
+    project = Project(WIDTH - sidebar_width, HEIGHT - ACTION_BAR_HEIGHT)
+
+    # Pre-rendered text
+    action_bar_title = action_text_handler.render_shadow(project.display_name)
+    edit_title = WIDTH/2 + action_bar_title[0].get_width()/2 + 10
+
+    # Buttons
+    button_dimensions = ACTION_BAR_HEIGHT - 16
+    button_size = (button_dimensions, button_dimensions)
+    button_y = 8
+    home_button = Button(button_size, (20 + button_dimensions, button_y), 'home.png', 'Home', HOME_EVENT)
+    menu_button = Button(button_size, (10, button_y), 'menu.png', 'Menu', MENU_EVENT)
+    edit_button = Button(tuple(x - 6 for x in button_size), (edit_title + 5, 10), 'edit.png', 'Edit', EDIT_EVENT)
+    redo_button = Button(button_size, (WIDTH - 20 - 2*button_dimensions, button_y), 'redo.png', 'Redo', REDO_EVENT)
+    undo_button = Button(button_size, (WIDTH - 30 - 3*button_dimensions, button_y), 'undo.png', 'Undo', UNDO_EVENT)
+    save_button = Button(button_size, (WIDTH - 10 - button_dimensions, button_y), 'save.png', 'Save', SAVE_EVENT)
+    sim_buttons = [project, undo_button, redo_button, save_button, home_button, menu_button, edit_button]
+    sim_button_manager = ElementManager(sim_buttons, version_handler)
 
     while running:
 
@@ -162,17 +191,21 @@ def main():
         if current_state == HOME:
 
             pygame.display.set_caption(f"Home • de:volt")
-            draw_homepage(win, home_title, home_version, visualiser, buttons, button_text_handler)
+            draw_homepage(win, home_title, home_version, visualiser, home_button_manager)
 
-            if not new_button.hovering and not open_button.hovering and not exit_button.hovering:
+            if not home_button_manager.hovered:
                 pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_ARROW)
             else:
                 pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_HAND)
         
         if current_state == PROTOSIM:
 
+            sidebar_width = 0
             pygame.display.set_caption(f"{project.display_name} • de:volt")
-            draw_sim(win, project, action_text_handler)
+            draw_sim(win, sidebar_width, project, sim_button_manager, action_bar_title)
+
+            if not sim_button_manager.hovered:
+                pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_ARROW)
         
         pygame.display.update()
     

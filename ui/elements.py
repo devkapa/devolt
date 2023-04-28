@@ -3,6 +3,7 @@ import pygame
 
 from runtime.environment import Environment
 from ui.colours import *
+from protosim.project import Project
 
 
 def fill(surface, color):
@@ -15,6 +16,27 @@ def fill(surface, color):
             a = surface.get_at((x, y))[3]
             copy.set_at((x, y), pygame.Color(r, g, b, a))
     return copy
+
+
+class ElementManager:
+
+    def __init__(self, buttons, text_manager):
+        self.elements = buttons
+        self.text_manager = text_manager
+        self.hovered = False
+
+    def draw(self, win, draw=True):
+        hovered = False
+        for element in self.elements:
+            if isinstance(element, Button):
+                element.draw(win, self.text_manager) if draw else None
+                element.listen()
+                if element.hovering:
+                    hovered = True
+            if isinstance(element, Project):
+                if element.panning:
+                    hovered = True
+        self.hovered = hovered
 
 
 class Button:
@@ -36,6 +58,7 @@ class Button:
         mouse_pos = pygame.mouse.get_pos()
         if self.rect.collidepoint(mouse_pos):
             self.hovering = True
+            pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_HAND)
             if pygame.mouse.get_pressed()[0]:
                 if not self.clicked:
                     self.clicked = True
@@ -50,13 +73,26 @@ class Button:
         pygame.draw.rect(win, colour, self.rect.move(2, 2), border_radius=16)
         pygame.draw.rect(win, COL_HOME_SHADOW if self.hovering else COL_HOME_TITLE, self.rect, border_radius=16)
         label_surface, label_shadow = text_handler.render_shadow(self.label, shadow_colour=colour, colour=COL_WHITE)
-        combined_width = (label_surface.get_width() + self.icon.get_width() + 10)/2
+        if label_surface.get_width() == 0:
+            combined_width = self.icon.get_width()/2
+        else:
+            combined_width = (label_surface.get_width() + self.icon.get_width() + 10) / 2
+        hover_label = combined_width*2 > self.size[0]
         starting_x = self.pos[0] + (self.size[0]/2) - combined_width
         starting_y = self.pos[1] + (self.size[1]/2)
-        icon_coords = (starting_x, starting_y - (self.icon.get_height()/2))
-        label_coords = (starting_x + self.icon.get_width() + 10, starting_y - (label_surface.get_height()/2))
-        win.blit(self.hovered_icon if self.hovering else self.icon, icon_coords)
-        win.blit(label_shadow, tuple(x + 1 for x in label_coords))
-        win.blit(label_surface, label_coords)
+        icon_coords = (starting_x, starting_y - (self.icon.get_height() / 2))
+        label_coords = (starting_x + self.icon.get_width() + 10, starting_y - (label_surface.get_height() / 2))
+        if hover_label:
+            if self.hovering:
+                label_coords = (self.pos[0] + (self.size[0]/2) - label_surface.get_width()/2, label_coords[1])
+                win.blit(label_shadow, tuple(x + 1 for x in label_coords))
+                win.blit(label_surface, label_coords)
+            else:
+                icon_coords = (self.pos[0] + (self.size[0]/2) - self.icon.get_width()/2, icon_coords[1])
+                win.blit(self.hovered_icon if self.hovering else self.icon, icon_coords)
+        else:
+            win.blit(self.hovered_icon if self.hovering else self.icon, icon_coords)
+            win.blit(label_shadow, tuple(x + 1 for x in label_coords))
+            win.blit(label_surface, label_coords)
         
         

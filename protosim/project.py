@@ -32,6 +32,10 @@ class Project:
             return
         self.zoom += x
 
+    def set_size(self, width=None, height=None):
+        self.width = width if width is not None else self.width
+        self.height = height if height is not None else self.height
+
     def relative_mouse(self):
         mouse_pos = pygame.mouse.get_pos()
         mouse_relative_to_protosim = tuple(map(lambda i, j: i - j, mouse_pos, self.pos))
@@ -57,7 +61,6 @@ class Project:
                     self.last_mouse_pos = pygame.mouse.get_pos()
                 else:
                     self.panning = False
-                    pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_ARROW)
                     self.last_mouse_pos = pygame.mouse.get_pos()
 
                     relative_mouse = self.relative_mouse()
@@ -65,9 +68,6 @@ class Project:
                     x, y = self.convert_point(point)
                     box = pygame.Rect(x, y, self.zoom, self.zoom)
                     pygame.draw.rect(win, COL_SIM_GRIDLINES, box)
-
-            else:
-                pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_ARROW)
 
     def gridlines(self, win, axis):
         current_line = 0
