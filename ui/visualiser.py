@@ -34,10 +34,9 @@ class Visualiser:
     
     def generate_initial_strands(self):
         self.strands.clear()
-        for _ in range(1):
-            edge, rand_coord = self.generate_edge()
-            initial_strand = Strand(rand_coord, self.INITIAL_ANGLES[edge], self, self.NUMBERED_ANGLES[edge])
-            self.strands.append(initial_strand)
+        edge, rand_coord = self.generate_edge()
+        initial_strand = Strand(rand_coord, self.INITIAL_ANGLES[edge], self, self.NUMBERED_ANGLES[edge])
+        self.strands.append(initial_strand)
     
     def add_strand(self, strand):
         self.strands.append(strand)

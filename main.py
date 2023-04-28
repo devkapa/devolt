@@ -21,7 +21,7 @@ flags = SCALED
 
 # Size constants
 WIDTH, HEIGHT = 1200, 800
-SIDEBAR_WIDTH = 300
+SIDEBAR_WIDTH = 0
 ACTION_BAR_HEIGHT = 50
 
 # Determine execution environment
@@ -62,8 +62,12 @@ def draw_circuit_graphic(win, visualiser):
     visualiser.draw(win)
 
 
-def draw_sim(win, project):
+def draw_sim(win, project, action_handler):
     win.fill(COL_HOME_BKG)
+    action_text, action_shadow = action_handler.render_shadow(project.display_name)
+    action_coords = (WIDTH/2 - action_text.get_width()/2, 10)
+    win.blit(action_shadow, tuple(x + 1 for x in action_coords))
+    win.blit(action_text, action_coords)
     project.pos = (SIDEBAR_WIDTH, ACTION_BAR_HEIGHT)
     win.blit(project.surface(), project.pos)
 
@@ -79,7 +83,6 @@ def main():
     # Initialise pygame modules
     pygame.font.init()
     pygame.display.init()
-    pygame.mixer.init()
     
     # Create an opaque window surface with defined width and height, and set a title
     win = pygame.display.set_mode((WIDTH, HEIGHT), flags)
@@ -100,8 +103,9 @@ def main():
     
     # Create text handlers
     title_handler = TextHandler(ENV, 'Play-Bold.ttf', 75)
-    version_text_handler = TextHandler(ENV, 'Play-Regular.ttf', 15)
+    version_handler = TextHandler(ENV, 'Play-Regular.ttf', 15)
     button_text_handler = TextHandler(ENV, 'Play-Regular.ttf', 25)
+    action_text_handler = TextHandler(ENV, 'Play-Regular.ttf', 30)
 
     # HOMEPAGE ELEMENTS
     # Buttons
@@ -112,7 +116,7 @@ def main():
 
     # Pre-rendered text
     home_title = title_handler.render_shadow("de:volt", shadow_colour=COL_HOME_TITLE, colour=COL_HOME_SHADOW)
-    home_version = version_text_handler.render_shadow(version, shadow_colour=COL_HOME_TITLE, colour=COL_HOME_SHADOW)
+    home_version = version_handler.render_shadow(version, shadow_colour=COL_HOME_TITLE, colour=COL_HOME_SHADOW)
 
     # Circuit visualiser for homepage
     visualiser = Visualiser(WIDTH, HEIGHT)
@@ -139,7 +143,9 @@ def main():
                     current_state = PROTOSIM
 
                 if event.type == OPEN_PROJECT_EVENT:
-                    print(open_dev().readlines())
+                    selected_file = open_dev()
+                    if selected_file is not None:
+                        print(selected_file.readlines())
 
                 if event.type == EXIT_EVENT:
                     pygame.quit()
@@ -166,7 +172,7 @@ def main():
         if current_state == PROTOSIM:
 
             pygame.display.set_caption(f"{project.display_name} • de:volt")
-            draw_sim(win, project)
+            draw_sim(win, project, action_text_handler)
         
         pygame.display.update()
     
