@@ -109,6 +109,7 @@ def main():
     clock = pygame.time.Clock()
     running = True
     fps = HOME_FPS
+    pygame.query_disable = []
 
     # Set the initial state to the title screen
     current_state = HOME
@@ -192,10 +193,11 @@ def main():
 
                 if event.type == pygame.MOUSEWHEEL:
                     if event.y:
-                        if project.last_surface.get_rect(topleft=project.pos).collidepoint(pygame.mouse.get_pos()):
+                        mouse_pos = pygame.mouse.get_pos()
+                        if project.last_surface.get_rect(topleft=project.pos).collidepoint(mouse_pos):
                             project.scale(event.y*2)
                         for element_list in sidebar.lists:
-                            if element_list.surface().get_rect(topleft=element_list.pos).collidepoint(pygame.mouse.get_pos()):
+                            if element_list.surface().get_rect(topleft=element_list.real_pos).collidepoint(mouse_pos):
                                 element_list.scroll(-event.y*20)
 
                 if event.type == MENU_EVENT:

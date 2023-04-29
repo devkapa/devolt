@@ -1,6 +1,7 @@
 import os.path
-
 import pygame
+
+from operator import sub
 
 from ui.elements import Button
 from ui.text import TextHandler
@@ -10,13 +11,13 @@ from runtime.environment import Environment
 
 class TabbedMenu:
 
-    def __init__(self, size, tab_height, tabs, pos):
+    def __init__(self, size, tab_height, tabs, real_pos):
         self.size = size
         self.tabs = tabs
         self.selected = 0
         self.tab_height = tab_height
         self.tab_count = len(tabs)
-        self.pos = pos
+        self.real_pos = real_pos
         env = Environment()
         self.handler = TextHandler(env, 'Play-Regular.ttf', 15)
         self.rects = []
@@ -35,7 +36,8 @@ class TabbedMenu:
             list_size = (self.size[0], self.size[1] - 10 - tab_height)
             description = "Here is a description of the tab that is currently open. It is another" \
                           " long, multi-lined description that can provide a ton of information."
-            self.lists.append(List(list_size, title, description, [], tuple(map(sum, zip(self.pos, self.list_pos)))))
+            list_real_pos = tuple(map(sum, zip(self.real_pos, self.list_pos)))
+            self.lists.append(List(list_size, title, description, [], self.list_pos, list_real_pos))
 
             accumulated += rect.w + 5
 
@@ -59,37 +61,40 @@ class TabbedMenu:
 
     def listen(self):
         found = False
-        mouse_pos = pygame.mouse.get_pos()
-        for i, rect in enumerate(self.rects):
-            rect_copy = rect[0].copy()
-            rect_copy.y += 60
-            if rect_copy.collidepoint(mouse_pos):
-                rect[1] = True
-                found = True
-                pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_HAND)
-                if pygame.mouse.get_pressed()[0]:
-                    if not self.clicked:
-                        self.clicked = True
-                        self.selected = i
-                else:
-                    self.clicked = False
-            else:
-                rect[1] = False
-        for i in self.lists:
-            for j in i.list_items:
-                if j.add_button.hovering:
+        if not len(pygame.query_disable):
+            mouse_pos = pygame.mouse.get_pos()
+            for i, rect in enumerate(self.rects):
+                rect_copy = rect[0].copy()
+                rect_copy.y += 60
+                if rect_copy.collidepoint(mouse_pos):
+                    rect[1] = True
                     found = True
+                    pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_HAND)
+                    if pygame.mouse.get_pressed()[0]:
+                        if not self.clicked:
+                            self.clicked = True
+                            self.selected = i
+                    else:
+                        self.clicked = False
+                else:
+                    rect[1] = False
+            for i in self.lists:
+                for j in i.list_items:
+                    if j.add_button.hovering:
+                        found = True
         self.hovering = found
 
 
 class List:
 
-    def __init__(self, size, title, desc, list_items, pos):
+    def __init__(self, size, title, desc, list_items, pos, real_pos):
         env = Environment()
         self.scroll_offset = 0
         self.size = size
         self.title = title
         self.desc = desc
+        self.real_pos = real_pos
+        self.clicked = False
         self.pos = pos
         self.list_items = list_items
         self.list_title_handler = TextHandler(env, 'Play-Regular.ttf', 25)
@@ -103,6 +108,7 @@ class List:
         self.scroll_up_img = pygame.transform.scale(scroll_arrow, (16, 16))
         self.scroll_down_img = pygame.transform.flip(self.scroll_up_img, False, True)
         self.overflow = 0
+        self.last_mouse_pos = (0, 0)
 
         # TEMPORARY
         for _ in range(5):
@@ -120,6 +126,25 @@ class List:
                 self.scroll_offset = self.overflow
                 return
             self.scroll_offset += x
+
+    def listen(self):
+        scroller_real_pos = tuple(map(sum, zip(self.pos, self.scroller.topleft)))
+        mouse_pos = pygame.mouse.get_pos()
+        scroller_relative = self.scroller.copy()
+        scroller_relative.topleft = scroller_real_pos
+        if scroller_relative.collidepoint(mouse_pos) or self.clicked:
+            if pygame.mouse.get_pressed()[0]:
+                self.clicked = True
+                if self not in pygame.query_disable:
+                    pygame.query_disable.append(self)
+                y_change = tuple(map(sub, pygame.mouse.get_pos(), self.last_mouse_pos))[1]
+                self.scroll(y_change)
+                self.last_mouse_pos = pygame.mouse.get_pos()
+            else:
+                if self in pygame.query_disable:
+                    pygame.query_disable.remove(self)
+                self.clicked = False
+                self.last_mouse_pos = pygame.mouse.get_pos()
 
     def surface(self):
         surface = pygame.Surface(self.size)
@@ -140,7 +165,11 @@ class List:
         surface.blit(self.scroll_down_img, (self.size[0] - 18, self.size[1] - 18))
         accumulated = 10 + title_surface.get_height() + self.desc[1] + 10
         for item in self.list_items:
-            surface.blit(item.surface(), (0, accumulated - self.scroll_offset))
+            item_pos = (0, accumulated - self.scroll_offset)
+            item_real_pos = tuple(map(sum, zip(self.real_pos, item_pos)))
+            item.set_real_pos(item_real_pos)
+            item.set_pos(item_pos)
+            surface.blit(item.surface(), item_pos)
             rect = (0, accumulated - self.scroll_offset + item.size[1])
             pygame.draw.rect(surface, COL_TABBED_BAR, pygame.Rect(rect, (item.size[0], 10)))
             accumulated += item.size[1] + 10
@@ -151,6 +180,7 @@ class List:
             self.scroller.y = 24 + (self.scroll_offset/accumulated)*scrolling_space
             self.scroller.height = items_per_page
             pygame.draw.rect(surface, COL_HOME_BKG, self.scroller)
+        self.listen()
         return surface
 
 
@@ -170,6 +200,14 @@ class ListItem:
         self.size = (self.size[0], 15 + self.title.get_height() + 25 + self.desc[1] + button_size[1])
         self.button_pos = (self.size[0]/3 + 20, self.size[1] - button_size[1] - 15)
         self.add_button = Button(button_size, self.button_pos, 'plus.png', f'Add {title}', event)
+        self.real_pos = (0, 0)
+        self.pos = (0, 0)
+
+    def set_real_pos(self, real_pos):
+        self.real_pos = real_pos
+
+    def set_pos(self, pos):
+        self.pos = pos
 
     def surface(self):
         surface = pygame.Surface(self.size)
@@ -182,7 +220,10 @@ class ListItem:
         for line in self.desc[0]:
             surface.blit(line, (self.image.get_width() + 20, 20 + self.title.get_height() + accumulated))
             accumulated += line.get_height() + 5
+        button_pos_y = tuple(map(sum, zip(self.pos, self.button_pos)))[1]
         self.add_button.draw(surface, self.title_handler)
-        self.add_button.listen()
+        button_real_pos = tuple(map(sum, zip(self.real_pos, self.button_pos)))
+        if button_pos_y > 0:
+            self.add_button.listen(top_left=button_real_pos)
         return surface
 

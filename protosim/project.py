@@ -55,12 +55,16 @@ class Project:
 
                 if pygame.mouse.get_pressed()[1]:
                     self.panning = True
+                    if self not in pygame.query_disable:
+                        pygame.query_disable.append(self)
                     pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_CROSSHAIR)
                     mouse_change = tuple(map(sub, pygame.mouse.get_pos(), self.last_mouse_pos))
                     self.shift(mouse_change[0], mouse_change[1])
                     self.last_mouse_pos = pygame.mouse.get_pos()
                 else:
                     self.panning = False
+                    if self in pygame.query_disable:
+                        pygame.query_disable.remove(self)
                     self.last_mouse_pos = pygame.mouse.get_pos()
 
                     relative_mouse = self.relative_mouse()
@@ -68,6 +72,7 @@ class Project:
                     x, y = self.convert_point(point)
                     box = pygame.Rect(x, y, self.zoom, self.zoom)
                     pygame.draw.rect(win, COL_SIM_GRIDLINES, box)
+
 
     def gridlines(self, win, axis):
         current_line = 0

@@ -42,8 +42,6 @@ class Visualiser:
         self.strands.append(strand)
     
     def draw(self, win):
-        if len(self.strands) > 100:
-            self.generate_initial_strands()
         for strand in self.strands:
             strand.grow()
             strand.draw_line(win)
@@ -87,6 +85,9 @@ class Strand:
 
     def restart(self):
         self.enabled = False
+        if len(self.parent.strands) > 100:
+            self.parent.generate_initial_strands()
+            return
         edge, rand_coord = self.parent.generate_edge()
         new_strand = Strand(rand_coord, Visualiser.INITIAL_ANGLES[edge], self.parent, Visualiser.NUMBERED_ANGLES[edge])
         self.parent.add_strand(new_strand)
