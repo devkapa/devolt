@@ -20,8 +20,8 @@ def fill(surface, color):
 
 class ElementManager:
 
-    def __init__(self, buttons, text_manager):
-        self.elements = buttons
+    def __init__(self, elements, text_manager):
+        self.elements = elements
         self.text_manager = text_manager
         self.hovered = False
 
@@ -50,7 +50,7 @@ class Button:
         self.pos = pos
         self.hovering = False
         environment_path = Environment().get_main_path()
-        icon_path = os.path.join(environment_path, 'assets', 'textures', icon)
+        icon_path = os.path.join(environment_path, 'assets', 'textures', 'icons', icon)
         self.icon = pygame.image.load(icon_path).convert_alpha()
         self.hovered_icon = fill(self.icon, COL_HOME_TITLE)
         self.label = label
@@ -72,7 +72,10 @@ class Button:
                 if pygame.mouse.get_pressed()[0]:
                     if not self.clicked:
                         self.clicked = True
-                        pygame.event.post(pygame.event.Event(self.event))
+                        if callable(self.event):
+                            self.event()
+                        else:
+                            pygame.event.post(pygame.event.Event(self.event))
                 else:
                     self.clicked = False
             else:

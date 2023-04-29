@@ -10,10 +10,12 @@ from runtime.environment import Environment
 from ui.text import TextHandler
 from ui.colours import *
 from ui.visualiser import Visualiser
-from ui.elements import Button, ElementManager
-from ui.interface import TabbedMenu
+from ui.button import Button, ElementManager
+from ui.interface import TabbedMenu, List
 
 from protosim.project import Project
+
+from logic.parts import PartManager, Part, parse
 
 
 # Versioning
@@ -138,11 +140,19 @@ def main():
     # SIMULATOR ELEMENTS
     # Project
     sidebar_width = SIDEBAR_WIDTH
+
+    # TEMPORARY, TODO: Project serialisation
     project = Project(WIDTH - sidebar_width, HEIGHT - ACTION_BAR_HEIGHT)
 
+    # Parts
+    default_parts = parse(os.path.join(ENV.get_main_path(), 'logic', 'parts.xml'))
+    boards = PartManager("Boards", Part.BOARD_DESC, default_parts[0])
+    ics = PartManager("Integrated Circuits", Part.IC_DESC, default_parts[1], small_title="ICs")
+    electronics = PartManager("Electronics", Part.ELECTRONICS_DESC, default_parts[2])
+
     # Sidebar
-    sidebar_tabs = {'Boards': [], 'ICs': [], 'Electronics': []}
-    sidebar = TabbedMenu((sidebar_width, HEIGHT - ACTION_BAR_HEIGHT), 30, sidebar_tabs, (0, ACTION_BAR_HEIGHT))
+    sidebar_tabs = [boards, ics, electronics]
+    sidebar = TabbedMenu((sidebar_width, HEIGHT - ACTION_BAR_HEIGHT), sidebar_tabs, 30, (0, ACTION_BAR_HEIGHT))
 
     # Pre-rendered text
     action_bar_title = action_text_handler.render_shadow(project.display_name)
@@ -196,9 +206,9 @@ def main():
                         mouse_pos = pygame.mouse.get_pos()
                         if project.last_surface.get_rect(topleft=project.pos).collidepoint(mouse_pos):
                             project.scale(event.y*2)
-                        for element_list in sidebar.lists:
-                            if element_list.surface().get_rect(topleft=element_list.real_pos).collidepoint(mouse_pos):
-                                element_list.scroll(-event.y*20)
+                        element_list = sidebar.lists[sidebar.selected]
+                        if element_list.surface().get_rect(topleft=element_list.real_pos).collidepoint(mouse_pos):
+                            element_list.scroll(-event.y*20)
 
                 if event.type == MENU_EVENT:
                     if sidebar_width > 0:
@@ -213,7 +223,8 @@ def main():
             draw_homepage(win, home_title, home_version, visualiser, home_button_manager)
 
             if not home_button_manager.hovered:
-                pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_ARROW)
+                if pygame.mouse.get_cursor() != pygame.SYSTEM_CURSOR_ARROW:
+                    pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_ARROW)
         
         if current_state == PROTOSIM:
 
@@ -221,7 +232,8 @@ def main():
             draw_sim(win, sidebar_width, project, sim_manager, action_bar_title, sidebar)
 
             if not sim_manager.hovered:
-                pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_ARROW)
+                if pygame.mouse.get_cursor() != pygame.SYSTEM_CURSOR_ARROW:
+                    pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_ARROW)
         
         pygame.display.update()
     

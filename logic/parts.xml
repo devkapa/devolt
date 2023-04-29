@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8" ?>
+
+<parts>
+
+    <part type="board" uid="breadboard-830">
+        <name>Breadboard (830)</name>
+        <desc>An 830 point solder-less breadboard with fully extending power rails.</desc>
+        <picture>bb-830-preview.png</picture>
+        <texture>bb-830.png</texture>
+        <boardConfig>
+            <size>12x5</size>
+            <rows>2</rows>
+            <columns points="5">63</columns>
+        </boardConfig>
+    </part>
+
+    <part type="board" uid="breadboard-400">
+        <name>Breadboard (400)</name>
+        <desc>A 400 point solder-less breadboard with fully extending power rails.</desc>
+        <picture>bb-400-preview.png</picture>
+        <texture>bb-400.png</texture>
+        <boardConfig>
+            <size>6x5</size>
+            <rows>2</rows>
+            <columns points="5">30</columns>
+        </boardConfig>
+    </part>
+
+</parts>

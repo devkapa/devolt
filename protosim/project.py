@@ -67,12 +67,12 @@ class Project:
                         pygame.query_disable.remove(self)
                     self.last_mouse_pos = pygame.mouse.get_pos()
 
-                    relative_mouse = self.relative_mouse()
-                    point = (math.floor(relative_mouse[0]/self.zoom), math.floor(relative_mouse[1]/self.zoom))
-                    x, y = self.convert_point(point)
-                    box = pygame.Rect(x, y, self.zoom, self.zoom)
-                    pygame.draw.rect(win, COL_SIM_GRIDLINES, box)
-
+                    if not len(pygame.query_disable):
+                        relative_mouse = self.relative_mouse()
+                        point = (math.floor(relative_mouse[0]/self.zoom), math.floor(relative_mouse[1]/self.zoom))
+                        x, y = self.convert_point(point)
+                        box = pygame.Rect(x, y, self.zoom, self.zoom)
+                        pygame.draw.rect(win, COL_SIM_GRIDLINES, box)
 
     def gridlines(self, win, axis):
         current_line = 0
