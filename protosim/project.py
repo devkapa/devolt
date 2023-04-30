@@ -18,10 +18,17 @@ class Project:
         self.last_mouse_pos = None
         self.pos = (0, 0)
         self.display_name = "Untitled.dev"
+        self.in_hand = None
 
     def shift(self, x, y):
         self.offset_x += x
         self.offset_y += y
+
+    def grab(self, part):
+        self.in_hand = part
+
+    def drop(self):
+        self.in_hand = None
 
     def scale(self, x):
         if x > 0 and self.zoom + x > 100:

@@ -179,15 +179,16 @@ class List:
 
 class ListItem:
 
-    def __init__(self, list_size, title, image, desc, part):
+    def __init__(self, list_size, title, image, desc, part, manager):
         env = Environment()
         self.size = (list_size[0] - 20, 150)
-        self.image = pygame.transform.scale(image, (self.size[0]/3, self.size[0]/3))
+        unscaled = pygame.image.load(os.path.join(env.get_main_path(), 'assets', 'textures', 'parts', image))
+        self.image = pygame.transform.scale(unscaled, (self.size[0]/3, self.size[0]/3))
         self.title_handler = TextHandler(env, 'Play-Regular.ttf', 15)
         desc_handler = TextHandler(env, 'Play-Regular.ttf', 12)
         self.title = self.title_handler.render(title, colour=COL_BLACK)
         self.desc = desc_handler.render_multiline(desc, self.size[0] - self.image.get_width() - 25, colour=COL_BLACK)
-        self.part = part
+        self.part = manager.parts[part]
         button_size = ((2/3)*self.size[0] - 30, 40)
         self.size = (self.size[0], 15 + self.title.get_height() + 25 + self.desc[1] + button_size[1])
         self.button_pos = (self.size[0]/3 + 20, self.size[1] - button_size[1] - 15)
@@ -199,8 +200,8 @@ class ListItem:
         self.real_pos = real_pos
 
     def event(self):
-        # TODO: XML integration
-        pass
+        new_part = self.part[1](*self.part[0])
+        # TODO: Add as the temporary in project
 
     def set_pos(self, pos):
         self.pos = pos

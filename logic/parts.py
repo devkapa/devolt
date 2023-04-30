@@ -33,8 +33,8 @@ def parse(xml_path):
                 columns = board_config.find("columns")
                 points_per_col = int(columns.attrib.get("points"))
                 columns = int(columns.text)
-                board = Breadboard(part_name, part_desc, part_texture, part_picture,
-                                   size, rows, columns, points_per_col)
+                board = (part_name, part_desc, part_texture, part_picture, size, rows, columns, points_per_col), \
+                    Breadboard
                 boards[part_uid] = board
 
             # TODO: Other part types
@@ -60,19 +60,20 @@ class PartManager:
 
     def create_list(self, size, pos, real_pos):
         part_list = List(size, self.title, self.desc, pos, real_pos, small_title=self.small_title)
-        for part in self.parts.values():
-            list_item = ListItem(part_list.size, part.name, part.preview_texture, part.desc, part)
+        for part in self.parts:
+            conf = self.parts[part][0]
+            list_item = ListItem(part_list.size, conf[0], conf[3], conf[1], part, self)
             part_list.list_items.append(list_item)
         return part_list
 
 
 class Part:
 
-    BOARD_DESC = "Breadboards are a plastic holed boards where electronic components can be inserted and connected " \
-                 "with jumper wires for prototyping and experimenting with circuits. After testing, components" \
+    BOARD_DESC = "Breadboards are plastic holed boards in which electronic components can be inserted and connected " \
+                 "with jumper wires for prototyping and experimenting with circuits. After testing, components " \
                  "can be easily re-wired."
     IC_DESC = "Integrated circuits (ICs) are small electronic devices that contain interconnected electronic " \
-              "components on a single chip of semiconductor material, allowing for small, efficient devices that can" \
+              "components on a single chip of semiconductor material, allowing for small, efficient devices that can " \
               "perform logic, such as mathematics."
     ELECTRONICS_DESC = "Electrical components, such as resistors, capacitors, diodes, and transistors, are basic " \
                        "building blocks used in electronic circuits to control the flow of electricity and create " \
