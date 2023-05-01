@@ -8,7 +8,7 @@ from ui.colours import *
 class Project:
 
     def __init__(self, width, height):
-        self.elements = {}  # {[x, y]: <Object>}, where x and y are the coordinates of the grid
+        self.elements = {}  # {(x, y): <Object>}, where x and y are the coordinates of the grid
         self.offset_x, self.offset_y = 0, 0
         self.zoom = 50
         self.origin = (10, 10)
@@ -19,6 +19,7 @@ class Project:
         self.pos = (0, 0)
         self.display_name = "Untitled.dev"
         self.in_hand = None
+        self.win = pygame.Surface((self.width, self.height))
 
     def shift(self, x, y):
         self.offset_x += x
@@ -42,6 +43,7 @@ class Project:
     def set_size(self, width=None, height=None):
         self.width = width if width is not None else self.width
         self.height = height if height is not None else self.height
+        self.win = pygame.Surface((self.width, self.height))
 
     def relative_mouse(self):
         mouse_pos = pygame.mouse.get_pos()
@@ -53,14 +55,17 @@ class Project:
         y = point[1] * self.zoom
         return self.origin[0] + x, self.origin[1] + y
 
-    def listen(self, win):
+    def listen(self):
         if self.last_surface is not None:
             if self.last_surface.get_rect(topleft=self.pos).collidepoint(pygame.mouse.get_pos()) or self.panning:
+
+                keys_pressed = pygame.key.get_pressed()
+                mouse_pressed = pygame.mouse.get_pressed()
 
                 if self.last_mouse_pos is None:
                     self.last_mouse_pos = pygame.mouse.get_pos()
 
-                if pygame.mouse.get_pressed()[1]:
+                if mouse_pressed[1] or (keys_pressed[pygame.K_LCTRL] and mouse_pressed[0]):
                     self.panning = True
                     if self not in pygame.query_disable:
                         pygame.query_disable.append(self)
@@ -73,13 +78,14 @@ class Project:
                     if self in pygame.query_disable:
                         pygame.query_disable.remove(self)
                     self.last_mouse_pos = pygame.mouse.get_pos()
-
-                    if not len(pygame.query_disable):
-                        relative_mouse = self.relative_mouse()
-                        point = (math.floor(relative_mouse[0]/self.zoom), math.floor(relative_mouse[1]/self.zoom))
-                        x, y = self.convert_point(point)
-                        box = pygame.Rect(x, y, self.zoom, self.zoom)
-                        pygame.draw.rect(win, COL_SIM_GRIDLINES, box)
+                    if self.in_hand is not None:
+                        if keys_pressed[pygame.K_ESCAPE]:
+                            self.in_hand = None
+                        elif mouse_pressed[0]:
+                            relative_mouse = self.relative_mouse()
+                            point = (math.floor(relative_mouse[0]/self.zoom), math.floor(relative_mouse[1]/self.zoom))
+                            self.elements[point] = self.in_hand
+                            self.in_hand = None
 
     def gridlines(self, win, axis):
         current_line = 0
@@ -91,12 +97,29 @@ class Project:
             pygame.draw.line(win, COL_SIM_GRIDLINES, start_coord, end_coord)
             current_line += self.zoom
 
+    def draw_scaled(self, win, element, coord, alpha=255):
+        real_element_pos = tuple(map(sum, zip(self.pos, self.convert_point(coord))))
+        size = (element.size[0] * self.zoom, element.size[1] * self.zoom)
+        scale = (size[0] / element.texture.get_width(), size[1] / element.texture.get_height())
+        surf = pygame.transform.scale(element.surface(real_element_pos, scale), size)
+        surf.fill((255, 255, 255, alpha), None, pygame.BLEND_RGBA_MULT)
+        win.blit(surf, self.convert_point(coord))
+
     def surface(self):
-        win = pygame.Surface((self.width, self.height))
-        win.fill(COL_SIM_BKG)
-        self.listen(win)
+        self.win.fill(COL_SIM_BKG)
+        self.listen()
         self.origin = (10 + self.offset_x, 10 + self.offset_y)
-        self.gridlines(win, 0)
-        self.gridlines(win, 1)
-        self.last_surface = win
-        return win
+        self.gridlines(self.win, 0)
+        self.gridlines(self.win, 1)
+        self.last_surface = self.win
+
+        if self.in_hand is not None:
+            relative_mouse = self.relative_mouse()
+            point = (math.floor(relative_mouse[0] / self.zoom), math.floor(relative_mouse[1] / self.zoom))
+            self.draw_scaled(self.win, self.in_hand, point, alpha=128)
+
+        for coord in self.elements:
+            element = self.elements[coord]
+            self.draw_scaled(self.win, element, coord)
+
+        return self.win

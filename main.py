@@ -146,9 +146,9 @@ def main():
 
     # Parts
     default_parts = parse(os.path.join(ENV.get_main_path(), 'logic', 'parts.xml'))
-    boards = PartManager("Boards", Part.BOARD_DESC, default_parts[0])
-    ics = PartManager("Integrated Circuits", Part.IC_DESC, default_parts[1], small_title="ICs")
-    electronics = PartManager("Electronics", Part.ELECTRONICS_DESC, default_parts[2])
+    boards = PartManager("Boards", Part.BOARD_DESC, default_parts[0], project)
+    ics = PartManager("Integrated Circuits", Part.IC_DESC, default_parts[1], project, small_title="ICs")
+    electronics = PartManager("Electronics", Part.ELECTRONICS_DESC, default_parts[2], project)
 
     # Sidebar
     sidebar_tabs = [boards, ics, electronics]

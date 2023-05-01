@@ -102,13 +102,6 @@ class List:
         self.overflow = 0
         self.last_mouse_pos = (0, 0)
 
-        # TEMPORARY
-        # for _ in range(5):
-        #     text_test = "This is a pretty long description for an item, that will likely take multiple lines " \
-        #                 "and will not be very easy to render. If I add more lines, the element will adapt."
-        #     list_test = ListItem(self.size, "ListItem", 'logo.png', text_test, None)
-        #     self.list_items.append(list_test)
-
     def scroll(self, x):
         if self.overflow:
             if self.scroll_offset + x < 0:
@@ -189,18 +182,21 @@ class ListItem:
         self.title = self.title_handler.render(title, colour=COL_BLACK)
         self.desc = desc_handler.render_multiline(desc, self.size[0] - self.image.get_width() - 25, colour=COL_BLACK)
         self.part = manager.parts[part]
+        self.manager = manager
         button_size = ((2/3)*self.size[0] - 30, 40)
         self.size = (self.size[0], 15 + self.title.get_height() + 25 + self.desc[1] + button_size[1])
         self.button_pos = (self.size[0]/3 + 20, self.size[1] - button_size[1] - 15)
         self.add_button = Button(button_size, self.button_pos, 'plus.png', f'Add {title}', self.event)
         self.real_pos = (0, 0)
         self.pos = (0, 0)
+        self.temp_part = None
 
     def set_real_pos(self, real_pos):
         self.real_pos = real_pos
 
     def event(self):
         new_part = self.part[1](*self.part[0])
+        self.manager.project.in_hand = new_part
         # TODO: Add as the temporary in project
 
     def set_pos(self, pos):

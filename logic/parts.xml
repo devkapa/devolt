@@ -8,21 +8,48 @@
         <picture>bb-830-preview.png</picture>
         <texture>bb-830.png</texture>
         <boardConfig>
-            <size>12x5</size>
+            <size>13x5</size>
             <rows>2</rows>
-            <columns points="5">63</columns>
+            <columns>63</columns>
+            <points>
+                <perColumn>5</perColumn>
+                <start>113,375</start>
+                <rowGap>225</rowGap>
+                <distance>75</distance>
+                <radius>25</radius>
+            </points>
+            <powerRails>
+                <perColumn>2</perColumn>
+                <start></start>
+                <rowGap></rowGap>
+                <distance>75</distance>
+                <radius>25</radius>
+            </powerRails>
         </boardConfig>
     </part>
 
     <part type="board" uid="breadboard-400">
         <name>Breadboard (400)</name>
         <desc>A 400 point solder-less breadboard with fully extending power rails.</desc>
-        <picture>bb-400-preview.png</picture>
-        <texture>bb-400.png</texture>
+        <picture>bb-400-preview.png</picture>        <texture>bb-400.png</texture>
         <boardConfig>
             <size>6x5</size>
             <rows>2</rows>
-            <columns points="5">30</columns>
+            <columns>30</columns>
+            <points>
+                <perColumn>5</perColumn>
+                <start>113,375</start>
+                <rowGap>225</rowGap>
+                <distance>67</distance>
+                <radius>24</radius>
+            </points>
+            <powerRails>
+                <perColumn>2</perColumn>
+                <start></start>
+                <rowGap></rowGap>
+                <distance>67</distance>
+                <radius>24</radius>
+            </powerRails>
         </boardConfig>
     </part>
 
