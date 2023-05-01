@@ -129,19 +129,20 @@ class Breadboard(Part):
 
     def surface(self, real_pos, scale):
         surface = self.texture.copy()
-        surface_rect = self.texture.get_rect().copy()
-        surface_rect.w *= scale[0]
-        surface_rect.h *= scale[1]
-        surface_rect.topleft = real_pos
-        if surface_rect.collidepoint(pygame.mouse.get_pos()):
-            for rect in self.rects:
-                r = self.rects[rect].copy()
-                real_r_pos = tuple(map(sum, zip(real_pos, (r.x*scale[0], r.y*scale[1]))))
-                r.w *= scale[0]
-                r.h *= scale[1]
-                r.topleft = real_r_pos
-                if r.collidepoint(pygame.mouse.get_pos()):
-                    pygame.draw.rect(surface, COL_BLACK, self.rects[rect])
+        if not len(pygame.query_disable):
+            surface_rect = self.texture.get_rect().copy()
+            surface_rect.w *= scale[0]
+            surface_rect.h *= scale[1]
+            surface_rect.topleft = real_pos
+            if surface_rect.collidepoint(pygame.mouse.get_pos()):
+                for rect in self.rects:
+                    r = self.rects[rect].copy()
+                    real_r_pos = tuple(map(sum, zip(real_pos, (r.x*scale[0], r.y*scale[1]))))
+                    r.w *= scale[0]
+                    r.h *= scale[1]
+                    r.topleft = real_r_pos
+                    if r.collidepoint(pygame.mouse.get_pos()):
+                        pygame.draw.rect(surface, COL_BLACK, self.rects[rect])
         return surface
 
 

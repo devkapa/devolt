@@ -2,6 +2,7 @@ import math
 import pygame
 
 from operator import sub
+
 from ui.colours import *
 
 
@@ -79,13 +80,34 @@ class Project:
                         pygame.query_disable.remove(self)
                     self.last_mouse_pos = pygame.mouse.get_pos()
                     if self.in_hand is not None:
+                        if self.in_hand not in pygame.query_disable:
+                            pygame.query_disable.append(self.in_hand)
                         if keys_pressed[pygame.K_ESCAPE]:
+                            if self.in_hand in pygame.query_disable:
+                                pygame.query_disable.remove(self.in_hand)
                             self.in_hand = None
                         elif mouse_pressed[0]:
                             relative_mouse = self.relative_mouse()
                             point = (math.floor(relative_mouse[0]/self.zoom), math.floor(relative_mouse[1]/self.zoom))
-                            self.elements[point] = self.in_hand
-                            self.in_hand = None
+                            occupating_points = []
+                            allowed = True
+                            for row in range(self.in_hand.size[0]):
+                                for column in range(self.in_hand.size[1]):
+                                    occupating_point = tuple(map(sum, zip(point, (row, column))))
+                                    if occupating_point in self.elements:
+                                        allowed = False
+                                        break
+                                    occupating_points.append(occupating_point)
+                            if allowed:
+                                self.elements[point] = self.in_hand
+                                occupator = Occupator(self.in_hand)
+                                for occupating_point in occupating_points:
+                                    if occupating_point == point:
+                                        continue
+                                    self.elements[occupating_point] = occupator
+                                if self.in_hand in pygame.query_disable:
+                                    pygame.query_disable.remove(self.in_hand)
+                                self.in_hand = None
 
     def gridlines(self, win, axis):
         current_line = 0
@@ -97,12 +119,12 @@ class Project:
             pygame.draw.line(win, COL_SIM_GRIDLINES, start_coord, end_coord)
             current_line += self.zoom
 
-    def draw_scaled(self, win, element, coord, alpha=255):
+    def draw_scaled(self, win, element, coord, colour=(255, 255, 255, 255)):
         real_element_pos = tuple(map(sum, zip(self.pos, self.convert_point(coord))))
         size = (element.size[0] * self.zoom, element.size[1] * self.zoom)
         scale = (size[0] / element.texture.get_width(), size[1] / element.texture.get_height())
         surf = pygame.transform.scale(element.surface(real_element_pos, scale), size)
-        surf.fill((255, 255, 255, alpha), None, pygame.BLEND_RGBA_MULT)
+        surf.fill(colour, None, pygame.BLEND_RGBA_MULT)
         win.blit(surf, self.convert_point(coord))
 
     def surface(self):
@@ -116,10 +138,29 @@ class Project:
         if self.in_hand is not None:
             relative_mouse = self.relative_mouse()
             point = (math.floor(relative_mouse[0] / self.zoom), math.floor(relative_mouse[1] / self.zoom))
-            self.draw_scaled(self.win, self.in_hand, point, alpha=128)
+            allowed = True
+            for row in range(self.in_hand.size[0]):
+                for column in range(self.in_hand.size[1]):
+                    occupating_point = tuple(map(sum, zip(point, (row, column))))
+                    if occupating_point in self.elements:
+                        allowed = False
+                        break
+            if point in self.elements or not allowed:
+                colour = (200, 0, 0, 128)
+            else:
+                colour = (255, 255, 255, 128)
+            self.draw_scaled(self.win, self.in_hand, point, colour=colour)
 
         for coord in self.elements:
             element = self.elements[coord]
+            if isinstance(element, Occupator):
+                continue
             self.draw_scaled(self.win, element, coord)
 
         return self.win
+
+
+class Occupator:
+
+    def __init__(self, parent):
+        self.parent = parent
