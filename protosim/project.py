@@ -56,6 +56,14 @@ class Project:
         y = point[1] * self.zoom
         return self.origin[0] + x, self.origin[1] + y
 
+    def delete(self, coordinate):
+        obj = self.elements[coordinate]
+        for coord in self.elements.copy():
+            element = self.elements[coord]
+            if isinstance(element, Occupator) and element.parent == obj:
+                del self.elements[coord]
+        del self.elements[coordinate]
+
     def listen(self):
         if self.last_surface is not None:
             if self.last_surface.get_rect(topleft=self.pos).collidepoint(pygame.mouse.get_pos()) or self.panning:
@@ -135,6 +143,12 @@ class Project:
         self.gridlines(self.win, 1)
         self.last_surface = self.win
 
+        for coord in self.elements:
+            element = self.elements[coord]
+            if isinstance(element, Occupator):
+                continue
+            self.draw_scaled(self.win, element, coord)
+
         if self.in_hand is not None:
             relative_mouse = self.relative_mouse()
             point = (math.floor(relative_mouse[0] / self.zoom), math.floor(relative_mouse[1] / self.zoom))
@@ -150,12 +164,6 @@ class Project:
             else:
                 colour = (255, 255, 255, 128)
             self.draw_scaled(self.win, self.in_hand, point, colour=colour)
-
-        for coord in self.elements:
-            element = self.elements[coord]
-            if isinstance(element, Occupator):
-                continue
-            self.draw_scaled(self.win, element, coord)
 
         return self.win
 

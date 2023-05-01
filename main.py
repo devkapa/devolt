@@ -11,7 +11,7 @@ from ui.text import TextHandler
 from ui.colours import *
 from ui.visualiser import Visualiser
 from ui.button import Button, ElementManager
-from ui.interface import TabbedMenu, List
+from ui.interface import TabbedMenu
 
 from protosim.project import Project
 

@@ -20,8 +20,8 @@
             </points>
             <powerRails>
                 <perColumn>2</perColumn>
-                <start></start>
-                <rowGap></rowGap>
+                <start>263,75</start>
+                <railGap></railGap>
                 <distance>75</distance>
                 <radius>25</radius>
             </powerRails>
