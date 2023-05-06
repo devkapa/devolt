@@ -3,9 +3,16 @@ import os.path
 import pygame.image
 import xml.etree.ElementTree as Et
 
+from logic.electronics import Conductor
+from collections import namedtuple
 from _elementtree import ParseError
 from ui.interface import List, ListItem
 from ui.colours import *
+
+
+BoardConfig = namedtuple("BoardConfig", "start_coord segment_gap per_segment_columns per_column_rows "
+                                        "per_segment_rep_count per_segment_rep_gap rule")
+Rule = namedtuple("Rule", "segment repetition column row")
 
 
 def get_board_config(element):
@@ -16,7 +23,21 @@ def get_board_config(element):
     per_segment_rep = element.find("perSegmentRepetition")
     per_segment_rep_count = int(per_segment_rep.text)
     per_segment_rep_gap = int(per_segment_rep.attrib.get("gap"))
-    return start_coord, segment_gap, per_segment_columns, per_column_rows, per_segment_rep_count, per_segment_rep_gap
+    rule = element.attrib.get("rule").split(",")
+    rule = Rule("SEGMENT" in rule, "REPETITION" in rule, "COLUMN" in rule, "ROW" in rule)
+    return BoardConfig(start_coord, segment_gap, per_segment_columns, per_column_rows, per_segment_rep_count,
+                       per_segment_rep_gap, rule)
+
+
+def get_common_conductor(discriminator, group):
+    for conductor in group.conductors:
+        valid_discriminators = []
+        for i in range(4):
+            digit = conductor.discriminator[i]
+            valid_discriminators.append(discriminator[i] == digit or digit is None)
+        if all(valid_discriminators):
+            return conductor
+    return None
 
 
 def parse(xml_path):
@@ -45,7 +66,6 @@ def parse(xml_path):
                     inch_tenth = int(board_config.find("inchTenth").text)
                     radius = int(board_config.find("radius").text)
 
-                    # Main Board
                     main_board = board_config.find("mainBoard")
                     main_board_config = get_board_config(main_board)
 
@@ -128,30 +148,34 @@ class Breadboard(Part):
         self.pr_rects = self.create_rects(power_rail)
 
     def create_rects(self, board_config):
+        RectGroup = namedtuple('RectGroup', 'rects conductors')
         if board_config is None:
             return {}
         rects = {}
-        start_coord = board_config[0]
-        segment_gap = board_config[1]
-        per_segment_columns = board_config[2]
-        per_column_rows = board_config[3]
-        per_segment_rep_count = board_config[4]
-        per_segment_rep_gap = board_config[5]
+        discriminators = []
 
         for segment in range(2):
-            segment_y = start_coord[1]+(segment*segment_gap)
-            for rep in range(per_segment_rep_count):
-                rep_x = start_coord[0]+(rep*per_segment_rep_gap)
-                for column in range(per_segment_columns):
+            segment_y = board_config.start_coord[1]+(segment*board_config.segment_gap)
+            for rep in range(board_config.per_segment_rep_count):
+                rep_x = board_config.start_coord[0]+(rep*board_config.per_segment_rep_gap)
+                for column in range(board_config.per_segment_columns):
                     column_x = rep_x+(self.inch_tenth*column)
-                    for row in range(per_column_rows):
+                    for row in range(board_config.per_column_rows):
+                        discriminator = (segment if board_config.rule.segment else None,
+                                         rep if board_config.rule.repetition else None,
+                                         column if board_config.rule.column else None,
+                                         row if board_config.rule.row else None)
+                        if discriminator not in discriminators:
+                            discriminators.append(discriminator)
                         row_y = segment_y+(self.inch_tenth*row)
                         rect_tl = (column_x-(self.inch_tenth/2), row_y-(self.inch_tenth/2))
                         rect_wh = (self.inch_tenth, self.inch_tenth)
                         rect = pygame.Rect(rect_tl, rect_wh)
                         rects[(segment, rep, column, row)] = rect
 
-        return rects
+        conductors = [BreadboardUnifier(discriminator) for discriminator in discriminators]
+
+        return RectGroup(rects, conductors)
 
     def surface(self, real_pos, scale):
         surface = self.texture
@@ -161,22 +185,22 @@ class Breadboard(Part):
             surface_rect.h *= scale[1]
             surface_rect.topleft = real_pos
             if surface_rect.collidepoint(pygame.mouse.get_pos()):
-                for rect in self.main_board_rects:
-                    r = self.main_board_rects[rect].copy()
-                    real_r_pos = tuple(map(sum, zip(real_pos, (r.x*scale[0], r.y*scale[1]))))
-                    r.w *= scale[0]
-                    r.h *= scale[1]
-                    r.topleft = real_r_pos
-                    if r.collidepoint(pygame.mouse.get_pos()):
-                        surface = surface.copy()
-                        pygame.draw.rect(surface, COL_BLACK, self.main_board_rects[rect])
-                for rect in self.pr_rects:
-                    r = self.pr_rects[rect].copy()
-                    real_r_pos = tuple(map(sum, zip(real_pos, (r.x*scale[0], r.y*scale[1]))))
-                    r.w *= scale[0]
-                    r.h *= scale[1]
-                    r.topleft = real_r_pos
-                    if r.collidepoint(pygame.mouse.get_pos()):
-                        surface = surface.copy()
-                        pygame.draw.rect(surface, COL_BLACK, self.pr_rects[rect])
+                for rect_group in [self.main_board_rects, self.pr_rects]:
+                    for rect in rect_group.rects:
+                        r = rect_group.rects[rect].copy()
+                        real_r_pos = tuple(map(sum, zip(real_pos, (r.x*scale[0], r.y*scale[1]))))
+                        r.w *= scale[0]
+                        r.h *= scale[1]
+                        r.topleft = real_r_pos
+                        if r.collidepoint(pygame.mouse.get_pos()):
+                            surface = surface.copy()
+                            pygame.draw.rect(surface, COL_BLACK, rect_group.rects[rect])
+                            print(get_common_conductor(rect, rect_group).discriminator)
         return surface
+
+
+class BreadboardUnifier(Conductor):
+
+    def __init__(self, discriminator):
+        super().__init__()
+        self.discriminator = discriminator
