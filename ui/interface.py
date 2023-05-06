@@ -117,19 +117,20 @@ class List:
         mouse_pos = pygame.mouse.get_pos()
         scroller_relative = self.scroller.copy()
         scroller_relative.topleft = scroller_real_pos
-        if scroller_relative.collidepoint(mouse_pos) or self.clicked:
-            if pygame.mouse.get_pressed()[0]:
-                self.clicked = True
-                if self not in env.query_disable:
-                    env.query_disable.append(self)
-                y_change = tuple(map(sub, pygame.mouse.get_pos(), self.last_mouse_pos))[1]
-                self.scroll(y_change)
-                self.last_mouse_pos = pygame.mouse.get_pos()
-            else:
-                if self in env.query_disable:
-                    env.query_disable.remove(self)
-                self.clicked = False
-                self.last_mouse_pos = pygame.mouse.get_pos()
+        if len(env.query_disable) == 0:
+            if scroller_relative.collidepoint(mouse_pos) or self.clicked:
+                if pygame.mouse.get_pressed()[0]:
+                    self.clicked = True
+                    if self not in env.query_disable:
+                        env.query_disable.append(self)
+                    y_change = tuple(map(sub, pygame.mouse.get_pos(), self.last_mouse_pos))[1]
+                    self.scroll(y_change)
+                    self.last_mouse_pos = pygame.mouse.get_pos()
+                else:
+                    if self in env.query_disable:
+                        env.query_disable.remove(self)
+                    self.clicked = False
+                    self.last_mouse_pos = pygame.mouse.get_pos()
 
     def surface(self):
         surface = pygame.Surface(self.size)
@@ -197,7 +198,6 @@ class ListItem:
     def event(self):
         new_part = self.part[1](*self.part[0], self.env)
         self.manager.project.in_hand = new_part
-        # TODO: Add as the temporary in project
 
     def set_pos(self, pos):
         self.pos = pos

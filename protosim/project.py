@@ -39,13 +39,12 @@ class Project:
         if x < 0 and self.zoom + x < 10:
             self.zoom = 10
             return
-        before_zoom = self.relative_mouse()
-        before_point = (math.floor(before_zoom[0] / self.zoom), math.floor(before_zoom[1] / self.zoom))
+        mouse = self.relative_mouse()
+        point_before_zoom = (mouse[0]/self.zoom, mouse[1]/self.zoom)
         self.zoom += x
-        after_zoom = self.relative_mouse()
-        after_point = (math.floor(after_zoom[0] / self.zoom), math.floor(after_zoom[1] / self.zoom))
-        delta = tuple(map(lambda i, j: i - j, after_point, before_point))
-        self.shift(delta[0]*self.zoom, delta[1]*self.zoom)
+        point_after_zoom = (mouse[0]/self.zoom, mouse[1]/self.zoom)
+        delta = tuple(map(lambda i, j: math.floor((i - j)*self.zoom), point_after_zoom, point_before_zoom))
+        self.shift(*delta)
 
     def set_size(self, width=None, height=None):
         self.width = width if width is not None else self.width
