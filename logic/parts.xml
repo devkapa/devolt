@@ -9,21 +9,21 @@
         <texture>bb-830.png</texture>
         <boardConfig>
             <size>13x5</size>
-            <rows>2</rows>
-            <columns>63</columns>
-            <points>
-                <perColumn>5</perColumn>
-                <start>113,375</start>
-                <rowGap>225</rowGap>
-                <distance>75</distance>
-                <radius>25</radius>
-            </points>
+            <inchTenth>75</inchTenth>
+            <radius>25</radius>
+            <mainBoard>
+                <startCoord>113,375</startCoord>
+                <segmentGap>525</segmentGap>
+                <perSegmentColumns>63</perSegmentColumns>
+                <perColumnRows>5</perColumnRows>
+                <perSegmentRepetition gap="0">1</perSegmentRepetition>
+            </mainBoard>
             <powerRails>
-                <perColumn>2</perColumn>
-                <start>263,75</start>
-                <railGap></railGap>
-                <distance>75</distance>
-                <radius>25</radius>
+                <startCoord>261,75</startCoord>
+                <segmentGap>1350</segmentGap>
+                <perSegmentColumns>5</perSegmentColumns>
+                <perColumnRows>2</perColumnRows>
+                <perSegmentRepetition gap="451">10</perSegmentRepetition>
             </powerRails>
         </boardConfig>
     </part>
@@ -35,22 +35,60 @@
         <texture>bb-400.png</texture>
         <boardConfig>
             <size>7x5</size>
-            <rows>2</rows>
-            <columns>30</columns>
-            <points>
-                <perColumn>5</perColumn>
-                <start>113,375</start>
-                <rowGap>225</rowGap>
-                <distance>67</distance>
-                <radius>24</radius>
-            </points>
+            <inchTenth>67</inchTenth>
+            <radius>24</radius>
+            <mainBoard>
+                <startCoord>130,358</startCoord>
+                <segmentGap>485</segmentGap>
+                <perSegmentColumns>30</perSegmentColumns>
+                <perColumnRows>5</perColumnRows>
+                <perSegmentRepetition gap="0">1</perSegmentRepetition>
+            </mainBoard>
             <powerRails>
-                <perColumn>2</perColumn>
-                <start></start>
-                <rowGap></rowGap>
-                <distance>67</distance>
-                <radius>24</radius>
+                <startCoord>132,92</startCoord>
+                <segmentGap>1207</segmentGap>
+                <perSegmentColumns>5</perSegmentColumns>
+                <perColumnRows>2</perColumnRows>
+                <perSegmentRepetition gap="420">5</perSegmentRepetition>
             </powerRails>
+        </boardConfig>
+    </part>
+
+    <part type="board" uid="breadboard-830-railless">
+        <name>RL Breadboard (830)</name>
+        <desc>An 830 point solder-less breadboard (no power rails).</desc>
+        <picture>bb-830-preview.png</picture>
+        <texture>bb-830-rl.png</texture>
+        <boardConfig>
+            <size>13x3</size>
+            <inchTenth>75</inchTenth>
+            <radius>25</radius>
+            <mainBoard>
+                <startCoord>113,154</startCoord>
+                <segmentGap>525</segmentGap>
+                <perSegmentColumns>63</perSegmentColumns>
+                <perColumnRows>5</perColumnRows>
+                <perSegmentRepetition gap="0">1</perSegmentRepetition>
+            </mainBoard>
+        </boardConfig>
+    </part>
+
+    <part type="board" uid="breadboard-400-railless">
+        <name>RL Breadboard (400)</name>
+        <desc>A 400 point solder-less breadboard (no power rails).</desc>
+        <picture>bb-400-preview.png</picture>
+        <texture>bb-400-rl.png</texture>
+        <boardConfig>
+            <size>7x3</size>
+            <inchTenth>67</inchTenth>
+            <radius>24</radius>
+            <mainBoard>
+                <startCoord>131,101</startCoord>
+                <segmentGap>485</segmentGap>
+                <perSegmentColumns>30</perSegmentColumns>
+                <perColumnRows>5</perColumnRows>
+                <perSegmentRepetition gap="0">1</perSegmentRepetition>
+            </mainBoard>
         </boardConfig>
     </part>
 

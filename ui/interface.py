@@ -6,27 +6,26 @@ from operator import sub
 from ui.button import Button
 from ui.text import TextHandler
 from ui.colours import *
-from runtime.environment import Environment
 
 
 class TabbedMenu:
 
-    def __init__(self, size, lists, tab_height, real_pos):
+    def __init__(self, size, lists, tab_height, real_pos, env):
         self.size = size
         self.selected = 0
         self.tab_height = tab_height
         self.real_pos = real_pos
-        env = Environment()
         self.handler = TextHandler(env, 'Play-Regular.ttf', 15)
         self.rects = []
         self.clicked = False
+        self.env = env
         self.hovering = False
         self.lists = []
         self.list_pos = (0, 10 + self.tab_height)
         list_real_pos = tuple(map(sum, zip(self.real_pos, self.list_pos)))
         accumulated = 10
         for i in lists:
-            i = i.create_list((self.size[0], self.size[1] - 10 - tab_height), self.list_pos, list_real_pos)
+            i = i.create_list((self.size[0], self.size[1] - 10 - tab_height), self.list_pos, list_real_pos, env)
             text = self.handler.render(i.small_title)
             rect = pygame.Rect(accumulated, 10, text.get_width() + 20, self.tab_height)
             self.rects.append([rect, False])
@@ -53,7 +52,7 @@ class TabbedMenu:
 
     def listen(self):
         found = False
-        if not len(pygame.query_disable):
+        if not len(self.env.query_disable):
             mouse_pos = pygame.mouse.get_pos()
             for i, rect in enumerate(self.rects):
                 rect_copy = rect[0].copy()
@@ -79,8 +78,7 @@ class TabbedMenu:
 
 class List:
 
-    def __init__(self, size, title, desc, pos, real_pos, small_title=None):
-        env = Environment()
+    def __init__(self, size, title, desc, pos, real_pos, env, small_title=None):
         self.scroll_offset = 0
         self.size = size
         self.title = title
@@ -89,6 +87,7 @@ class List:
         self.clicked = False
         self.pos = pos
         self.list_items = []
+        self.env = env
         self.title_handler = TextHandler(env, 'Play-Regular.ttf', 25)
         desc_handler = TextHandler(env, 'Play-Regular.ttf', 15)
         self.desc = desc_handler.render_multiline(desc, self.size[0] - 30, colour=COL_BLACK)
@@ -113,6 +112,7 @@ class List:
             self.scroll_offset += x
 
     def listen(self):
+        env = self.env
         scroller_real_pos = tuple(map(sum, zip(self.real_pos, self.scroller.topleft)))
         mouse_pos = pygame.mouse.get_pos()
         scroller_relative = self.scroller.copy()
@@ -120,14 +120,14 @@ class List:
         if scroller_relative.collidepoint(mouse_pos) or self.clicked:
             if pygame.mouse.get_pressed()[0]:
                 self.clicked = True
-                if self not in pygame.query_disable:
-                    pygame.query_disable.append(self)
+                if self not in env.query_disable:
+                    env.query_disable.append(self)
                 y_change = tuple(map(sub, pygame.mouse.get_pos(), self.last_mouse_pos))[1]
                 self.scroll(y_change)
                 self.last_mouse_pos = pygame.mouse.get_pos()
             else:
-                if self in pygame.query_disable:
-                    pygame.query_disable.remove(self)
+                if self in env.query_disable:
+                    env.query_disable.remove(self)
                 self.clicked = False
                 self.last_mouse_pos = pygame.mouse.get_pos()
 
@@ -172,8 +172,7 @@ class List:
 
 class ListItem:
 
-    def __init__(self, list_size, title, image, desc, part, manager):
-        env = Environment()
+    def __init__(self, list_size, title, image, desc, part, manager, env):
         self.size = (list_size[0] - 20, 150)
         unscaled = pygame.image.load(os.path.join(env.get_main_path(), 'assets', 'textures', 'parts', image))
         self.image = pygame.transform.scale(unscaled, (self.size[0]/3, self.size[0]/3))
@@ -183,10 +182,11 @@ class ListItem:
         self.desc = desc_handler.render_multiline(desc, self.size[0] - self.image.get_width() - 25, colour=COL_BLACK)
         self.part = manager.parts[part]
         self.manager = manager
+        self.env = env
         button_size = ((2/3)*self.size[0] - 30, 40)
         self.size = (self.size[0], 15 + self.title.get_height() + 25 + self.desc[1] + button_size[1])
         self.button_pos = (self.size[0]/3 + 20, self.size[1] - button_size[1] - 15)
-        self.add_button = Button(button_size, self.button_pos, 'plus.png', f'Add {title}', self.event)
+        self.add_button = Button(button_size, self.button_pos, 'plus.png', f'Add {title}', self.event, env)
         self.real_pos = (0, 0)
         self.pos = (0, 0)
         self.temp_part = None
@@ -195,7 +195,7 @@ class ListItem:
         self.real_pos = real_pos
 
     def event(self):
-        new_part = self.part[1](*self.part[0])
+        new_part = self.part[1](*self.part[0], self.env)
         self.manager.project.in_hand = new_part
         # TODO: Add as the temporary in project
 

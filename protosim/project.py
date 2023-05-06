@@ -2,17 +2,17 @@ import math
 import pygame
 
 from operator import sub
-
 from ui.colours import *
 
 
 class Project:
 
-    def __init__(self, width, height):
+    def __init__(self, width, height, env):
         self.elements = {}  # {(x, y): <Object>}, where x and y are the coordinates of the grid
         self.offset_x, self.offset_y = 0, 0
         self.zoom = 50
         self.origin = (10, 10)
+        self.env = env
         self.width, self.height = width, height
         self.panning = False
         self.last_surface = None
@@ -33,8 +33,8 @@ class Project:
         self.in_hand = None
 
     def scale(self, x):
-        if x > 0 and self.zoom + x > 100:
-            self.zoom = 100
+        if x > 0 and self.zoom + x > 400:
+            self.zoom = 400
             return
         if x < 0 and self.zoom + x < 10:
             self.zoom = 10
@@ -57,14 +57,17 @@ class Project:
         return self.origin[0] + x, self.origin[1] + y
 
     def delete(self, coordinate):
-        obj = self.elements[coordinate]
         for coord in self.elements.copy():
             element = self.elements[coord]
-            if isinstance(element, Occupator) and element.parent == obj:
+            if isinstance(element, Occupier) and element.parent_coord == coordinate:
                 del self.elements[coord]
         del self.elements[coordinate]
 
     def listen(self):
+        env = self.env
+        if self.in_hand is not None:
+            if self.in_hand not in env.query_disable:
+                env.query_disable.append(self.in_hand)
         if self.last_surface is not None:
             if self.last_surface.get_rect(topleft=self.pos).collidepoint(pygame.mouse.get_pos()) or self.panning:
 
@@ -76,46 +79,60 @@ class Project:
 
                 if mouse_pressed[1] or (keys_pressed[pygame.K_LCTRL] and mouse_pressed[0]):
                     self.panning = True
-                    if self not in pygame.query_disable:
-                        pygame.query_disable.append(self)
+                    if self not in env.query_disable:
+                        env.query_disable.append(self)
                     pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_CROSSHAIR)
                     mouse_change = tuple(map(sub, pygame.mouse.get_pos(), self.last_mouse_pos))
                     self.shift(mouse_change[0], mouse_change[1])
                     self.last_mouse_pos = pygame.mouse.get_pos()
-                else:
-                    self.panning = False
-                    if self in pygame.query_disable:
-                        pygame.query_disable.remove(self)
-                    self.last_mouse_pos = pygame.mouse.get_pos()
-                    if self.in_hand is not None:
-                        if self.in_hand not in pygame.query_disable:
-                            pygame.query_disable.append(self.in_hand)
-                        if keys_pressed[pygame.K_ESCAPE]:
-                            if self.in_hand in pygame.query_disable:
-                                pygame.query_disable.remove(self.in_hand)
+                    return
+
+                self.panning = False
+
+                if self in env.query_disable:
+                    env.query_disable.remove(self)
+
+                self.last_mouse_pos = pygame.mouse.get_pos()
+
+                if self.in_hand is not None:
+
+                    if keys_pressed[pygame.K_ESCAPE]:
+
+                        if self.in_hand in env.query_disable:
+                            env.query_disable.remove(self.in_hand)
+                        self.in_hand = None
+                        return
+
+                    if mouse_pressed[0]:
+                        relative_mouse = self.relative_mouse()
+                        point = (math.floor(relative_mouse[0]/self.zoom), math.floor(relative_mouse[1]/self.zoom))
+                        occupying_points = []
+                        allowed = True
+                        for row in range(self.in_hand.size[0]):
+                            for column in range(self.in_hand.size[1]):
+                                occupying_point = tuple(map(sum, zip(point, (row, column))))
+                                if occupying_point in self.elements:
+                                    allowed = False
+                                    break
+                                occupying_points.append(occupying_point)
+                        if allowed:
+                            self.elements[point] = self.in_hand
+                            occupier = Occupier(point)
+                            for occupying_point in occupying_points:
+                                if occupying_point == point:
+                                    continue
+                                self.elements[occupying_point] = occupier
+                            if self.in_hand in env.query_disable:
+                                env.query_disable.remove(self.in_hand)
                             self.in_hand = None
-                        elif mouse_pressed[0]:
-                            relative_mouse = self.relative_mouse()
-                            point = (math.floor(relative_mouse[0]/self.zoom), math.floor(relative_mouse[1]/self.zoom))
-                            occupating_points = []
-                            allowed = True
-                            for row in range(self.in_hand.size[0]):
-                                for column in range(self.in_hand.size[1]):
-                                    occupating_point = tuple(map(sum, zip(point, (row, column))))
-                                    if occupating_point in self.elements:
-                                        allowed = False
-                                        break
-                                    occupating_points.append(occupating_point)
-                            if allowed:
-                                self.elements[point] = self.in_hand
-                                occupator = Occupator(self.in_hand)
-                                for occupating_point in occupating_points:
-                                    if occupating_point == point:
-                                        continue
-                                    self.elements[occupating_point] = occupator
-                                if self.in_hand in pygame.query_disable:
-                                    pygame.query_disable.remove(self.in_hand)
-                                self.in_hand = None
+                        return
+
+                if mouse_pressed[2]:
+                    relative_mouse = self.relative_mouse()
+                    point = (math.floor(relative_mouse[0] / self.zoom), math.floor(relative_mouse[1] / self.zoom))
+                    if point in self.elements:
+                        if isinstance(self.elements[point], Occupier):
+                            self.delete(self.elements[point].parent_coord)
 
     def gridlines(self, win, axis):
         current_line = 0
@@ -131,7 +148,8 @@ class Project:
         real_element_pos = tuple(map(sum, zip(self.pos, self.convert_point(coord))))
         size = (element.size[0] * self.zoom, element.size[1] * self.zoom)
         scale = (size[0] / element.texture.get_width(), size[1] / element.texture.get_height())
-        surf = pygame.transform.scale(element.surface(real_element_pos, scale), size)
+        element_surf = element.surface(real_element_pos, scale)
+        surf = pygame.transform.scale(element_surf, size)
         surf.fill(colour, None, pygame.BLEND_RGBA_MULT)
         win.blit(surf, self.convert_point(coord))
 
@@ -145,7 +163,7 @@ class Project:
 
         for coord in self.elements:
             element = self.elements[coord]
-            if isinstance(element, Occupator):
+            if isinstance(element, Occupier):
                 continue
             self.draw_scaled(self.win, element, coord)
 
@@ -155,8 +173,8 @@ class Project:
             allowed = True
             for row in range(self.in_hand.size[0]):
                 for column in range(self.in_hand.size[1]):
-                    occupating_point = tuple(map(sum, zip(point, (row, column))))
-                    if occupating_point in self.elements:
+                    occupying_point = tuple(map(sum, zip(point, (row, column))))
+                    if occupying_point in self.elements:
                         allowed = False
                         break
             if point in self.elements or not allowed:
@@ -168,7 +186,7 @@ class Project:
         return self.win
 
 
-class Occupator:
+class Occupier:
 
-    def __init__(self, parent):
-        self.parent = parent
+    def __init__(self, parent_coord):
+        self.parent_coord = parent_coord

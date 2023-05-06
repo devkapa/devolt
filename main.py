@@ -73,7 +73,8 @@ def draw_circuit_graphic(win, visualiser):
 
 def draw_sim(win, sidebar_width, project, buttons, title, sidebar):
     win.fill(COL_HOME_BKG)
-    project.set_size(width=WIDTH-sidebar_width)
+    if project.width != WIDTH-sidebar_width:
+        project.set_size(width=WIDTH-sidebar_width)
     action_text, action_shadow = title
     action_coords = (WIDTH/2 - action_text.get_width()/2, ACTION_BAR_HEIGHT/2 - action_text.get_height()/2)
     win.blit(action_shadow, tuple(x + 1 for x in action_coords))
@@ -111,7 +112,6 @@ def main():
     clock = pygame.time.Clock()
     running = True
     fps = HOME_FPS
-    pygame.query_disable = []
 
     # Set the initial state to the title screen
     current_state = HOME
@@ -124,9 +124,9 @@ def main():
 
     # HOMEPAGE ELEMENTS
     # Buttons
-    new_button = Button((220, 60), ((WIDTH/2)-110, (HEIGHT/2) - 20), 'plus.png', "New Project", NEW_PROJECT_EVENT)
-    open_button = Button((220, 60), ((WIDTH/2)-110, (HEIGHT/2) + 60), 'open.png', "Open Project", OPEN_PROJECT_EVENT)
-    exit_button = Button((220, 60), ((WIDTH/2)-110, (HEIGHT/2) + 140), 'exit.png', "Exit", EXIT_EVENT)
+    new_button = Button((220, 60), ((WIDTH/2)-110, (HEIGHT/2)-20), 'plus.png', "New Project", NEW_PROJECT_EVENT, ENV)
+    open_button = Button((220, 60), ((WIDTH/2)-110, (HEIGHT/2)+60), 'open.png', "Open Project", OPEN_PROJECT_EVENT, ENV)
+    exit_button = Button((220, 60), ((WIDTH/2)-110, (HEIGHT/2)+140), 'exit.png', "Exit", EXIT_EVENT, ENV)
     home_buttons = [new_button, open_button, exit_button]
     home_button_manager = ElementManager(home_buttons, button_text_handler)
 
@@ -142,7 +142,7 @@ def main():
     sidebar_width = SIDEBAR_WIDTH
 
     # TEMPORARY, TODO: Project serialisation
-    project = Project(WIDTH - sidebar_width, HEIGHT - ACTION_BAR_HEIGHT)
+    project = Project(WIDTH - sidebar_width, HEIGHT - ACTION_BAR_HEIGHT, ENV)
 
     # Parts
     default_parts = parse(os.path.join(ENV.get_main_path(), 'logic', 'parts.xml'))
@@ -152,7 +152,7 @@ def main():
 
     # Sidebar
     sidebar_tabs = [boards, ics, electronics]
-    sidebar = TabbedMenu((sidebar_width, HEIGHT - ACTION_BAR_HEIGHT), sidebar_tabs, 30, (0, ACTION_BAR_HEIGHT))
+    sidebar = TabbedMenu((sidebar_width, HEIGHT - ACTION_BAR_HEIGHT), sidebar_tabs, 30, (0, ACTION_BAR_HEIGHT), ENV)
 
     # Pre-rendered text
     action_bar_title = action_text_handler.render_shadow(project.display_name)
@@ -162,12 +162,12 @@ def main():
     button_dimensions = ACTION_BAR_HEIGHT - 16
     button_size = (button_dimensions, button_dimensions)
     button_y = 8
-    home_button = Button(button_size, (20 + button_dimensions, button_y), 'home.png', 'Home', HOME_EVENT)
-    menu_button = Button(button_size, (10, button_y), 'menu.png', 'Menu', MENU_EVENT)
-    edit_button = Button(tuple(x - 6 for x in button_size), (edit_title + 5, 10), 'edit.png', 'Edit', EDIT_EVENT)
-    redo_button = Button(button_size, (WIDTH - 20 - 2*button_dimensions, button_y), 'redo.png', 'Redo', REDO_EVENT)
-    undo_button = Button(button_size, (WIDTH - 30 - 3*button_dimensions, button_y), 'undo.png', 'Undo', UNDO_EVENT)
-    save_button = Button(button_size, (WIDTH - 10 - button_dimensions, button_y), 'save.png', 'Save', SAVE_EVENT)
+    home_button = Button(button_size, (20 + button_dimensions, button_y), 'home.png', 'Home', HOME_EVENT, ENV)
+    menu_button = Button(button_size, (10, button_y), 'menu.png', 'Menu', MENU_EVENT, ENV)
+    edit_button = Button(tuple(x - 6 for x in button_size), (edit_title + 5, 10), 'edit.png', 'Edit', EDIT_EVENT, ENV)
+    redo_button = Button(button_size, (WIDTH - 20 - 2*button_dimensions, button_y), 'redo.png', 'Redo', REDO_EVENT, ENV)
+    undo_button = Button(button_size, (WIDTH - 30 - 3*button_dimensions, button_y), 'undo.png', 'Undo', UNDO_EVENT, ENV)
+    save_button = Button(button_size, (WIDTH - 10 - button_dimensions, button_y), 'save.png', 'Save', SAVE_EVENT, ENV)
     sim_elements = [project, sidebar, undo_button, redo_button, save_button, home_button, menu_button, edit_button]
     sim_manager = ElementManager(sim_elements, version_handler)
 

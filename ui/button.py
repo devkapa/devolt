@@ -1,7 +1,6 @@
 import os
 import pygame
 
-from runtime.environment import Environment
 from ui.colours import *
 from protosim.project import Project
 
@@ -45,11 +44,12 @@ class ElementManager:
 
 class Button:
     
-    def __init__(self, size, pos, icon, label, event):
+    def __init__(self, size, pos, icon, label, event, env):
         self.size = size
         self.pos = pos
+        self.env = env
         self.hovering = False
-        environment_path = Environment().get_main_path()
+        environment_path = env.get_main_path()
         icon_path = os.path.join(environment_path, 'assets', 'textures', 'icons', icon)
         self.icon = pygame.image.load(icon_path).convert_alpha()
         self.hovered_icon = fill(self.icon, COL_HOME_TITLE)
@@ -60,7 +60,7 @@ class Button:
         
     def listen(self, top_left=None):
         mouse_pos = pygame.mouse.get_pos()
-        if not len(pygame.query_disable):
+        if not len(self.env.query_disable):
             if top_left is not None:
                 rect = self.rect.copy()
                 rect.topleft = top_left
