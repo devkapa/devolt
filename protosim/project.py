@@ -39,7 +39,13 @@ class Project:
         if x < 0 and self.zoom + x < 10:
             self.zoom = 10
             return
+        before_zoom = self.relative_mouse()
+        before_point = (math.floor(before_zoom[0] / self.zoom), math.floor(before_zoom[1] / self.zoom))
         self.zoom += x
+        after_zoom = self.relative_mouse()
+        after_point = (math.floor(after_zoom[0] / self.zoom), math.floor(after_zoom[1] / self.zoom))
+        delta = tuple(map(lambda i, j: i - j, after_point, before_point))
+        self.shift(delta[0]*self.zoom, delta[1]*self.zoom)
 
     def set_size(self, width=None, height=None):
         self.width = width if width is not None else self.width
@@ -101,7 +107,6 @@ class Project:
                         if self.in_hand in env.query_disable:
                             env.query_disable.remove(self.in_hand)
                         self.in_hand = None
-                        return
 
                     if mouse_pressed[0]:
                         relative_mouse = self.relative_mouse()
@@ -125,7 +130,8 @@ class Project:
                             if self.in_hand in env.query_disable:
                                 env.query_disable.remove(self.in_hand)
                             self.in_hand = None
-                        return
+
+                    return
 
                 if mouse_pressed[2]:
                     relative_mouse = self.relative_mouse()
