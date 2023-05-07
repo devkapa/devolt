@@ -195,6 +195,7 @@ class Breadboard(Part):
                         if r.collidepoint(pygame.mouse.get_pos()):
                             surface = surface.copy()
                             pygame.draw.rect(surface, COL_BLACK, rect_group.rects[rect])
+                            # TEMPORARY
                             print(get_common_conductor(rect, rect_group).discriminator)
         return surface
 
