@@ -92,4 +92,19 @@
         </boardConfig>
     </part>
 
+    <part type="supply" uid="supply-5v">
+        <name>5V Power Supply</name>
+        <desc>A battery pack supplying 5V of power.</desc>
+        <picture>supply-5v-preview.png</picture>
+        <texture>supply-5v.png</texture>
+        <powerConfig>
+            <size>5x3</size>
+            <voltage>5</voltage>
+            <inchTenth>58</inchTenth>
+            <posNodeCoord>344,182</posNodeCoord>
+            <negNodeCoord>286,182</negNodeCoord>
+            <nodeRadius>16</nodeRadius>
+        </powerConfig>
+    </part>
+
 </parts>

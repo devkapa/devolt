@@ -14,7 +14,7 @@ from ui.button import Button, ElementManager
 from ui.interface import TabbedMenu
 
 from protosim.project import Project
-
+from logic.electronics import Wire
 from logic.parts import PartManager, Part, parse
 
 
@@ -215,6 +215,18 @@ def main():
                         sidebar_width = 0
                     else:
                         sidebar_width = SIDEBAR_WIDTH
+
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    if pygame.mouse.get_pressed()[0]:
+                        if project.rect_hovered is not None:
+                            if project.incomplete_wire is None:
+                                project.incomplete_wire = project.rect_hovered
+                            else:
+                                project.wires.append(Wire(project.incomplete_wire, project.rect_hovered))
+                                if project.incomplete_wire in ENV.query_disable:
+                                    ENV.query_disable.remove(project.incomplete_wire)
+                                project.incomplete_wire = None
+                                project.rect_hovered = None
 
         # Display the page corresponding to the program state
         if current_state == HOME:

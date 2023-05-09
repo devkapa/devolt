@@ -117,7 +117,7 @@ class List:
         mouse_pos = pygame.mouse.get_pos()
         scroller_relative = self.scroller.copy()
         scroller_relative.topleft = scroller_real_pos
-        if len(env.query_disable) == 0:
+        if len(env.query_disable) == 0 or self.clicked:
             if scroller_relative.collidepoint(mouse_pos) or self.clicked:
                 if pygame.mouse.get_pressed()[0]:
                     self.clicked = True

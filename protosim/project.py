@@ -1,14 +1,15 @@
 import math
 import pygame
 
-from operator import sub
+from operator import sub, mul
 from ui.colours import *
 
 
 class Project:
 
     def __init__(self, width, height, env):
-        self.elements = {}  # {(x, y): <Object>}, where x and y are the coordinates of the grid
+        self.boards = {}
+        self.wires = []
         self.offset_x, self.offset_y = 0, 0
         self.zoom = 50
         self.origin = (10, 10)
@@ -21,6 +22,8 @@ class Project:
         self.display_name = "Untitled.dev"
         self.in_hand = None
         self.win = pygame.Surface((self.width, self.height))
+        self.rect_hovered = None
+        self.incomplete_wire = None
 
     def shift(self, x, y):
         self.offset_x += x
@@ -62,17 +65,25 @@ class Project:
         return self.origin[0] + x, self.origin[1] + y
 
     def delete(self, coordinate):
-        for coord in self.elements.copy():
-            element = self.elements[coord]
+        for coord in self.boards.copy():
+            element = self.boards[coord]
             if isinstance(element, Occupier) and element.parent_coord == coordinate:
-                del self.elements[coord]
-        del self.elements[coordinate]
+                del self.boards[coord]
+        self.rect_hovered = None
+        self.incomplete_wire = None
+        for wire in self.wires.copy():
+            if wire.point_a.parent == self.boards[coordinate] or wire.point_b.parent == self.boards[coordinate]:
+                self.wires.remove(wire)
+        del self.boards[coordinate]
 
     def listen(self):
         env = self.env
         if self.in_hand is not None:
             if self.in_hand not in env.query_disable:
                 env.query_disable.append(self.in_hand)
+        if self.incomplete_wire is not None:
+            if self.incomplete_wire not in env.query_disable:
+                env.query_disable.append(self.incomplete_wire)
         if self.last_surface is not None:
             if self.last_surface.get_rect(topleft=self.pos).collidepoint(pygame.mouse.get_pos()) or self.panning:
 
@@ -99,6 +110,14 @@ class Project:
 
                 self.last_mouse_pos = pygame.mouse.get_pos()
 
+                if self.incomplete_wire is not None:
+
+                    if keys_pressed[pygame.K_ESCAPE]:
+
+                        if self.incomplete_wire in env.query_disable:
+                            env.query_disable.remove(self.incomplete_wire)
+                        self.incomplete_wire = None
+
                 if self.in_hand is not None:
 
                     if keys_pressed[pygame.K_ESCAPE]:
@@ -115,29 +134,29 @@ class Project:
                         for row in range(self.in_hand.size[0]):
                             for column in range(self.in_hand.size[1]):
                                 occupying_point = tuple(map(sum, zip(point, (row, column))))
-                                if occupying_point in self.elements:
+                                if occupying_point in self.boards:
                                     allowed = False
                                     break
                                 occupying_points.append(occupying_point)
                         if allowed:
-                            self.elements[point] = self.in_hand
+                            self.boards[point] = self.in_hand
                             occupier = Occupier(point)
                             for occupying_point in occupying_points:
                                 if occupying_point == point:
                                     continue
-                                self.elements[occupying_point] = occupier
+                                self.boards[occupying_point] = occupier
                             if self.in_hand in env.query_disable:
                                 env.query_disable.remove(self.in_hand)
                             self.in_hand = None
 
                     return
 
-                if mouse_pressed[2]:
+                if self.incomplete_wire is None and mouse_pressed[2]:
                     relative_mouse = self.relative_mouse()
                     point = (math.floor(relative_mouse[0] / self.zoom), math.floor(relative_mouse[1] / self.zoom))
-                    if point in self.elements:
-                        if isinstance(self.elements[point], Occupier):
-                            self.delete(self.elements[point].parent_coord)
+                    if point in self.boards:
+                        if isinstance(self.boards[point], Occupier):
+                            self.delete(self.boards[point].parent_coord)
 
     def gridlines(self, win, axis):
         current_line = 0
@@ -153,10 +172,11 @@ class Project:
         real_element_pos = tuple(map(sum, zip(self.pos, self.convert_point(coord))))
         size = (element.size[0] * self.zoom, element.size[1] * self.zoom)
         scale = (size[0] / element.texture.get_width(), size[1] / element.texture.get_height())
-        element_surf = element.surface(real_element_pos, scale)
+        element_surf, rect_hovered = element.surface(real_element_pos, scale)
         surf = pygame.transform.scale(element_surf, size)
         surf.fill(colour, None, pygame.BLEND_RGBA_MULT)
         win.blit(surf, self.convert_point(coord))
+        return scale, coord, rect_hovered
 
     def surface(self):
         self.win.fill(COL_SIM_BKG)
@@ -166,11 +186,43 @@ class Project:
         self.gridlines(self.win, 1)
         self.last_surface = self.win
 
-        for coord in self.elements:
-            element = self.elements[coord]
+        temp_positions = {}
+        temp_hovered = None
+
+        for coord in self.boards:
+            element = self.boards[coord]
             if isinstance(element, Occupier):
                 continue
-            self.draw_scaled(self.win, element, coord)
+            scale, coord, rect_hovered = self.draw_scaled(self.win, element, coord)
+            temp_positions[element] = (scale, coord)
+            if rect_hovered is not None:
+                temp_hovered = rect_hovered
+
+        self.rect_hovered = temp_hovered
+
+        if self.incomplete_wire is not None:
+            a_scale, a_coord = temp_positions[self.incomplete_wire.parent]
+            a_rect = self.incomplete_wire.rect
+            a_pos = self.convert_point(a_coord)
+            a_scaled_center = tuple(map(mul, a_scale, a_rect.center))
+            a_real_center = tuple(map(sum, zip(a_pos, a_scaled_center)))
+            mouse_pos = pygame.mouse.get_pos()
+            mouse_relative = tuple(map(lambda i, j: i - j, mouse_pos, self.pos))
+            pygame.draw.aaline(self.win, COL_RED, a_real_center, mouse_relative)
+
+        for wire in self.wires:
+            a_scale, a_coord = temp_positions[wire.point_a.parent]
+            b_scale, b_coord = temp_positions[wire.point_b.parent]
+            a_rect = wire.point_a.rect
+            b_rect = wire.point_b.rect
+            a_pos = self.convert_point(a_coord)
+            b_pos = self.convert_point(b_coord)
+            a_scaled_center = tuple(map(mul, a_scale, a_rect.center))
+            a_real_center = tuple(map(sum, zip(a_pos, a_scaled_center)))
+            b_scaled_center = tuple(map(mul, b_scale, b_rect.center))
+            b_real_center = tuple(map(sum, zip(b_pos, b_scaled_center)))
+            pygame.draw.line(self.win, COL_BLACK, a_real_center, b_real_center, width=4)
+            pygame.draw.line(self.win, wire.colour, a_real_center, b_real_center, width=2)
 
         if self.in_hand is not None:
             relative_mouse = self.relative_mouse()
@@ -179,10 +231,10 @@ class Project:
             for row in range(self.in_hand.size[0]):
                 for column in range(self.in_hand.size[1]):
                     occupying_point = tuple(map(sum, zip(point, (row, column))))
-                    if occupying_point in self.elements:
+                    if occupying_point in self.boards:
                         allowed = False
                         break
-            if point in self.elements or not allowed:
+            if point in self.boards or not allowed:
                 colour = (200, 0, 0, 128)
             else:
                 colour = (255, 255, 255, 128)
