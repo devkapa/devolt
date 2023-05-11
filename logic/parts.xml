@@ -107,4 +107,14 @@
         </powerConfig>
     </part>
 
+    <part type="ic" uid="ic-74hc00">
+        <name>74HC00</name>
+        <desc>This chip has quad 2-input NAND gates.</desc>
+        <picture>ic.png</picture>
+        <texture>ic.png</texture>
+        <icConfig>
+            <dipCount>14</dipCount>
+        </icConfig>
+    </part>
+
 </parts>

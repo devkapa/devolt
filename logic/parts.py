@@ -3,11 +3,12 @@ import os.path
 import pygame.image
 import xml.etree.ElementTree as Et
 
-from logic.electronics import Conductor
+from logic.electronics import Node, Source, Sink
 from collections import namedtuple
 from _elementtree import ParseError
 from ui.interface import List, ListItem
 from ui.colours import *
+from ui.text import TextHandler
 
 BoardConfig = namedtuple("BoardConfig", "start_coord segment_gap per_segment_columns per_column_rows "
                                         "per_segment_rep_count per_segment_rep_gap rule")
@@ -87,6 +88,14 @@ def parse(xml_path):
                         PowerSupply
                     electronics[part_uid] = supply
 
+                if part_type == "ic":
+                    ic_config = part.find("icConfig")
+                    dip_count = int(ic_config.find("dipCount").text)
+
+                    ic = (part_name, part_desc, part_texture, part_picture, dip_count), \
+                        IntegratedCircuit
+                    ics[part_uid] = ic
+
                 # TODO: Other part types
 
             except TypeError:
@@ -149,7 +158,7 @@ class PowerSupply(Part):
         super().__init__(name, desc, texture, preview_texture, env)
         self.size = size
         self.inch_tenth = inch_tenth
-        voltage = voltage
+        self.voltage = voltage
         neg_rail_coord = pos_info.neg_rail
         pos_rail_coord = pos_info.pos_rail
         radius = pos_info.radius
@@ -157,8 +166,8 @@ class PowerSupply(Part):
         neg_rect_tl = (neg_rail_coord[0] - radius, neg_rail_coord[1] - radius)
         rect_wh = (radius*2, radius*2)
         self.rects = [pygame.Rect(pos_rect_tl, rect_wh), pygame.Rect(neg_rect_tl, rect_wh)]
-        self.points = [BreadboardPoint(self, None, Conductor(voltage=voltage), self.rects[0]),
-                       BreadboardPoint(self, None, Conductor(), self.rects[1])]
+        self.points = [BreadboardPoint(self, None, Source(), self.rects[0]),
+                       BreadboardPoint(self, None, Sink(), self.rects[1])]
 
     def surface(self, real_pos, scale):
         rect_hovered = None
@@ -180,12 +189,17 @@ class PowerSupply(Part):
 
 class Breadboard(Part):
 
+    DISCRIMINATOR = namedtuple("Discriminator", "segment rep column row")
+
     def __init__(self, name, desc, texture, preview_texture, size, inch_tenth, radius, main, power_rail, env):
         super().__init__(name, desc, texture, preview_texture, env)
         self.size = size
         self.inch_tenth = inch_tenth
         self.radius = radius
         self.env = env
+        self.main_board_config = main
+        self.pr_config = power_rail
+        self.plugins = {}
         self.main_board_rects = self.create_rects(main)
         self.pr_rects = self.create_rects(power_rail)
 
@@ -206,24 +220,51 @@ class Breadboard(Part):
                                         rep if board_config.rule.repetition else None,
                                         column if board_config.rule.column else None,
                                         row if board_config.rule.row else None)
-                        if rail_discrim in rails:
-                            common_conductor = [rail for rail in rails if rail == rail_discrim][0]
-                        else:
-                            common_conductor = BreadboardRail(rail_discrim)
+                        found = None
+                        for rail in rails:
+                            if rail.rail_discriminator == rail_discrim:
+                                found = rail
+                        if found is None:
+                            found = BreadboardRail(rail_discrim)
+                        rails.append(found)
                         row_y = segment_y + (self.inch_tenth * row)
                         rect_tl = (column_x - (self.inch_tenth / 2), row_y - (self.inch_tenth / 2))
                         rect_wh = (self.inch_tenth, self.inch_tenth)
                         rect = pygame.Rect(rect_tl, rect_wh)
-                        discriminator = (segment, rep, column, row)
-                        point = BreadboardPoint(self, discriminator, common_conductor, rect)
-                        rects[discriminator] = rect, common_conductor, point
+                        discriminator = self.DISCRIMINATOR(segment, rep, column, row)
+                        point = BreadboardPoint(self, discriminator, found, rect)
+                        rects[discriminator] = rect, found, point
 
         return rects
 
+    def ic_requirements(self, ic_discrim, ic_dips):
+        pins_to_nodes = {}
+        for i in range(ic_dips):
+            if i < ic_dips/2:
+                discriminator = (ic_discrim.segment + 1, ic_discrim.rep, ic_discrim.column + i, ic_discrim.row)
+            else:
+                f_x = i + (ic_dips - 1) - (2 * i)
+                discriminator = (ic_discrim.segment, ic_discrim.rep, ic_discrim.column + f_x, ic_discrim.row)
+            pins_to_nodes[i] = self.main_board_rects[discriminator][1].uuid
+        return pins_to_nodes
+
+    def ic_collision(self, ic_discrim, ic_dips):
+        requirements = list(self.ic_requirements(ic_discrim, ic_dips).values())
+        for plugin in self.plugins.values():
+            if isinstance(plugin, IntegratedCircuit):
+                for node_uuid in plugin.pins_to_nodes.values():
+                    if node_uuid in requirements:
+                        return True
+        return False
+
     def surface(self, real_pos, scale):
         rect_hovered = None
-        surface = self.texture
-        incomplete_wire = any(isinstance(x, BreadboardPoint) for x in self.env.query_disable)
+        surface = self.texture.copy()
+        for plugin in self.plugins:
+            plugin_rect = self.main_board_rects[plugin][0]
+            plugin_pos = (plugin_rect.left, plugin_rect.centery)
+            surface.blit(self.plugins[plugin].surface(self)[0], plugin_pos)
+        incomplete_wire = any(isinstance(x, BreadboardPoint) or isinstance(x, IntegratedCircuit) for x in self.env.query_disable)
         if not len(self.env.query_disable) or incomplete_wire:
             surface_rect = self.texture.get_rect().copy()
             surface_rect.w *= scale[0]
@@ -239,7 +280,6 @@ class Breadboard(Part):
                         r.topleft = real_r_pos
                         if r.collidepoint(pygame.mouse.get_pos()):
                             rect_hovered = rect_group[coord][2]
-                            surface = surface.copy()
                             pygame.draw.rect(surface, COL_BLACK, rect_group[coord][0])
         return surface, rect_hovered
 
@@ -253,11 +293,55 @@ class BreadboardPoint:
         self.rect = rect
 
 
-class BreadboardRail(Conductor):
+class BreadboardRail(Node):
 
     def __init__(self, rail_discriminator):
         super().__init__()
         self.rail_discriminator = rail_discriminator
 
-    def __eq__(self, other):
-        return self.rail_discriminator == other
+
+class PluginPart(Part):
+
+    def __init__(self, name, desc, texture, preview_texture, env):
+        super().__init__(name, desc, texture, preview_texture, env)
+
+    def surface(self, hovered_board):
+        pass
+
+
+class IntegratedCircuit(PluginPart):
+
+    def __init__(self, name, desc, texture, preview_texture, dip_count, env):
+        super().__init__(name, desc, texture, preview_texture, env)
+        self.dip_count = dip_count
+        self.pins_to_nodes = {}
+
+    def draw(self, inch_tenth, radius, gap):
+        win = pygame.Surface(((self.dip_count/2)*inch_tenth, gap+inch_tenth))
+        handler = TextHandler(self.env, 'Play-Regular.ttf', radius*4)
+        label = handler.render(self.name)
+        win.set_colorkey((0, 0, 0))
+        rect = pygame.Rect(0, radius, win.get_width(), win.get_height()-(2*radius))
+        pygame.draw.rect(win, COL_IC_LID, rect)
+        for i in range(self.dip_count):
+            if i < self.dip_count/2:
+                r = pygame.Rect((inch_tenth/2) - (radius/2) + (inch_tenth*i), win.get_height()-radius, radius, radius)
+                pygame.draw.rect(win, COL_IC_PIN, r)
+            else:
+                r = pygame.Rect((win.get_width() - (inch_tenth / 2)) - (radius/2) - (inch_tenth * (i-(self.dip_count/2))), 0, radius, radius)
+                pygame.draw.rect(win, COL_IC_PIN, r)
+        win.blit(label, (win.get_width()/2 - label.get_width()/2, win.get_height()/2 - label.get_height()/2))
+        return win
+
+    def surface(self, hovered_board):
+        if hovered_board is None:
+            inch_tenth, radius, gap = 25, 25, 60
+        else:
+            main_board_config = hovered_board.main_board_config
+            inch_tenth, radius = hovered_board.inch_tenth, hovered_board.radius
+            gap = main_board_config.segment_gap - (main_board_config.per_column_rows*inch_tenth)
+        surface = self.draw(inch_tenth, radius, gap)
+        rect_hovered = None
+        if hovered_board is not None:
+            pass
+        return surface, rect_hovered

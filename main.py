@@ -1,9 +1,10 @@
 import pygame
 import os
-import sys
 
 from tkinter import filedialog as fd
 from pygame.locals import SCALED
+from PySpice.Unit import *
+from PySpice.Spice.Netlist import Circuit
 
 from runtime.environment import Environment
 
@@ -14,9 +15,8 @@ from ui.button import Button, ElementManager
 from ui.interface import TabbedMenu
 
 from protosim.project import Project
-from logic.electronics import Wire
-from logic.parts import PartManager, Part, parse
-
+from logic.electronics import Wire, Sink, Source, Node
+from logic.parts import PartManager, Part, parse, PowerSupply
 
 # Versioning
 version = "0.0.1"
@@ -176,6 +176,16 @@ def main():
         # Limit the loop to run at the frame tick rate
         clock.tick(fps)
 
+        circuit = Circuit("dev", ground="gnd")
+
+        supplies = [supply for supply in project.boards.values() if isinstance(supply, PowerSupply)]
+        for index, supply in enumerate(supplies):
+            circuit.V(index, supply.points[0].common.uuid, supply.points[1].common.uuid, supply.voltage)
+        for index, wire in enumerate(project.wires):
+            circuit.R(index, wire.point_a.common.uuid, wire.point_b.common.uuid, 0)
+
+        print(circuit)
+
         # Check for new events 
         for event in pygame.event.get():
 
@@ -218,15 +228,16 @@ def main():
 
                 if event.type == pygame.MOUSEBUTTONDOWN:
                     if pygame.mouse.get_pressed()[0]:
-                        if project.rect_hovered is not None:
-                            if project.incomplete_wire is None:
-                                project.incomplete_wire = project.rect_hovered
-                            else:
-                                project.wires.append(Wire(project.incomplete_wire, project.rect_hovered))
-                                if project.incomplete_wire in ENV.query_disable:
-                                    ENV.query_disable.remove(project.incomplete_wire)
-                                project.incomplete_wire = None
-                                project.rect_hovered = None
+                        if project.in_hand is None:
+                            if project.point_hovered is not None:
+                                if project.incomplete_wire is None:
+                                    project.incomplete_wire = project.point_hovered
+                                else:
+                                    project.wires.append(Wire(project.incomplete_wire, project.point_hovered))
+                                    if project.incomplete_wire in ENV.query_disable:
+                                        ENV.query_disable.remove(project.incomplete_wire)
+                                    project.incomplete_wire = None
+                                    project.point_hovered = None
 
         # Display the page corresponding to the program state
         if current_state == HOME:

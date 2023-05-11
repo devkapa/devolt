@@ -3,6 +3,7 @@ import pygame
 
 from operator import sub, mul
 from ui.colours import *
+from ui.text import TextHandler
 
 
 class Project:
@@ -22,8 +23,10 @@ class Project:
         self.display_name = "Untitled.dev"
         self.in_hand = None
         self.win = pygame.Surface((self.width, self.height))
-        self.rect_hovered = None
+        self.point_hovered = None
         self.incomplete_wire = None
+        self.handler = TextHandler(env, 'Play-Regular.ttf', 25)
+        self.drag_warning = self.handler.render("Drag above a breadboard hole", colour=COL_HOME_BKG)
 
     def shift(self, x, y):
         self.offset_x += x
@@ -69,7 +72,7 @@ class Project:
             element = self.boards[coord]
             if isinstance(element, Occupier) and element.parent_coord == coordinate:
                 del self.boards[coord]
-        self.rect_hovered = None
+        self.point_hovered = None
         self.incomplete_wire = None
         for wire in self.wires.copy():
             if wire.point_a.parent == self.boards[coordinate] or wire.point_b.parent == self.boards[coordinate]:
@@ -127,27 +130,46 @@ class Project:
                         self.in_hand = None
 
                     if mouse_pressed[0]:
-                        relative_mouse = self.relative_mouse()
-                        point = (math.floor(relative_mouse[0]/self.zoom), math.floor(relative_mouse[1]/self.zoom))
-                        occupying_points = []
-                        allowed = True
-                        for row in range(self.in_hand.size[0]):
-                            for column in range(self.in_hand.size[1]):
-                                occupying_point = tuple(map(sum, zip(point, (row, column))))
-                                if occupying_point in self.boards:
-                                    allowed = False
-                                    break
-                                occupying_points.append(occupying_point)
-                        if allowed:
-                            self.boards[point] = self.in_hand
-                            occupier = Occupier(point)
-                            for occupying_point in occupying_points:
-                                if occupying_point == point:
-                                    continue
-                                self.boards[occupying_point] = occupier
-                            if self.in_hand in env.query_disable:
-                                env.query_disable.remove(self.in_hand)
-                            self.in_hand = None
+                        from logic.parts import Breadboard, PowerSupply, IntegratedCircuit
+                        if isinstance(self.in_hand, IntegratedCircuit):
+                            if self.point_hovered is not None:
+                                discriminator = self.point_hovered.discriminator
+                                if discriminator.segment == 0:
+                                    parent = self.point_hovered.parent
+                                    rows = parent.main_board_config.per_column_rows
+                                    if discriminator.row == (rows-1):
+                                        columns = parent.main_board_config.per_segment_columns
+                                        if discriminator.column + (self.in_hand.dip_count/2) <= columns:
+                                            col = parent.ic_collision(discriminator, self.in_hand.dip_count)
+                                            if not col:
+                                                parent.plugins[discriminator] = self.in_hand
+                                                req = parent.ic_requirements(discriminator, self.in_hand.dip_count)
+                                                self.in_hand.pins_to_nodes = req
+                                                if self.in_hand in env.query_disable:
+                                                    env.query_disable.remove(self.in_hand)
+                                                self.in_hand = None
+                        elif isinstance(self.in_hand, Breadboard) or isinstance(self.in_hand, PowerSupply):
+                            relative_mouse = self.relative_mouse()
+                            point = (math.floor(relative_mouse[0]/self.zoom), math.floor(relative_mouse[1]/self.zoom))
+                            occupying_points = []
+                            allowed = True
+                            for row in range(self.in_hand.size[0]):
+                                for column in range(self.in_hand.size[1]):
+                                    occupying_point = tuple(map(sum, zip(point, (row, column))))
+                                    if occupying_point in self.boards:
+                                        allowed = False
+                                        break
+                                    occupying_points.append(occupying_point)
+                            if allowed:
+                                self.boards[point] = self.in_hand
+                                occupier = Occupier(point)
+                                for occupying_point in occupying_points:
+                                    if occupying_point == point:
+                                        continue
+                                    self.boards[occupying_point] = occupier
+                                if self.in_hand in env.query_disable:
+                                    env.query_disable.remove(self.in_hand)
+                                self.in_hand = None
 
                     return
 
@@ -168,7 +190,7 @@ class Project:
             pygame.draw.line(win, COL_SIM_GRIDLINES, start_coord, end_coord)
             current_line += self.zoom
 
-    def draw_scaled(self, win, element, coord, colour=(255, 255, 255, 255)):
+    def draw_scaled_big(self, win, element, coord, colour=(255, 255, 255, 255)):
         real_element_pos = tuple(map(sum, zip(self.pos, self.convert_point(coord))))
         size = (element.size[0] * self.zoom, element.size[1] * self.zoom)
         scale = (size[0] / element.texture.get_width(), size[1] / element.texture.get_height())
@@ -193,12 +215,12 @@ class Project:
             element = self.boards[coord]
             if isinstance(element, Occupier):
                 continue
-            scale, coord, rect_hovered = self.draw_scaled(self.win, element, coord)
+            scale, coord, rect_hovered = self.draw_scaled_big(self.win, element, coord)
             temp_positions[element] = (scale, coord)
             if rect_hovered is not None:
                 temp_hovered = rect_hovered
 
-        self.rect_hovered = temp_hovered
+        self.point_hovered = temp_hovered
 
         if self.incomplete_wire is not None:
             a_scale, a_coord = temp_positions[self.incomplete_wire.parent]
@@ -225,20 +247,35 @@ class Project:
             pygame.draw.line(self.win, wire.colour, a_real_center, b_real_center, width=2)
 
         if self.in_hand is not None:
-            relative_mouse = self.relative_mouse()
-            point = (math.floor(relative_mouse[0] / self.zoom), math.floor(relative_mouse[1] / self.zoom))
-            allowed = True
-            for row in range(self.in_hand.size[0]):
-                for column in range(self.in_hand.size[1]):
-                    occupying_point = tuple(map(sum, zip(point, (row, column))))
-                    if occupying_point in self.boards:
-                        allowed = False
-                        break
-            if point in self.boards or not allowed:
-                colour = (200, 0, 0, 128)
+            from logic.parts import PluginPart
+            if isinstance(self.in_hand, PluginPart):
+                mouse_pos = pygame.mouse.get_pos()
+                mouse_relative = tuple(map(lambda i, j: i - j, mouse_pos, self.pos))
+                if self.point_hovered is not None:
+                    scale = temp_positions[self.point_hovered.parent][0]
+                    surf = self.in_hand.surface(self.point_hovered.parent)[0]
+                    size = tuple(map(mul, scale, surf.get_size()))
+                    surf = pygame.transform.scale(surf, size)
+                    mouse_relative = (mouse_relative[0] - self.point_hovered.parent.radius*scale[0], mouse_relative[1])
+                    self.win.blit(surf, mouse_relative)
+                else:
+
+                    self.win.blit(self.drag_warning, mouse_relative)
             else:
-                colour = (255, 255, 255, 128)
-            self.draw_scaled(self.win, self.in_hand, point, colour=colour)
+                relative_mouse = self.relative_mouse()
+                point = (math.floor(relative_mouse[0] / self.zoom), math.floor(relative_mouse[1] / self.zoom))
+                allowed = True
+                for row in range(self.in_hand.size[0]):
+                    for column in range(self.in_hand.size[1]):
+                        occupying_point = tuple(map(sum, zip(point, (row, column))))
+                        if occupying_point in self.boards:
+                            allowed = False
+                            break
+                if point in self.boards or not allowed:
+                    colour = (200, 0, 0, 128)
+                else:
+                    colour = (255, 255, 255, 128)
+                self.draw_scaled_big(self.win, self.in_hand, point, colour=colour)
 
         return self.win
 
