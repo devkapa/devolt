@@ -133,21 +133,15 @@ class Project:
                         from logic.parts import Breadboard, PowerSupply, IntegratedCircuit
                         if isinstance(self.in_hand, IntegratedCircuit):
                             if self.point_hovered is not None:
+                                parent = self.point_hovered.parent
                                 discriminator = self.point_hovered.discriminator
-                                if discriminator.segment == 0:
-                                    parent = self.point_hovered.parent
-                                    rows = parent.main_board_config.per_column_rows
-                                    if discriminator.row == (rows-1):
-                                        columns = parent.main_board_config.per_segment_columns
-                                        if discriminator.column + (self.in_hand.dip_count/2) <= columns:
-                                            col = parent.ic_collision(discriminator, self.in_hand.dip_count)
-                                            if not col:
-                                                parent.plugins[discriminator] = self.in_hand
-                                                req = parent.ic_requirements(discriminator, self.in_hand.dip_count)
-                                                self.in_hand.pins_to_nodes = req
-                                                if self.in_hand in env.query_disable:
-                                                    env.query_disable.remove(self.in_hand)
-                                                self.in_hand = None
+                                if parent.ic_allowed(self.in_hand, self.point_hovered):
+                                    parent.plugins[discriminator] = self.in_hand
+                                    req = parent.ic_requirements(discriminator, self.in_hand.dip_count)
+                                    self.in_hand.pins_to_nodes = req
+                                    if self.in_hand in env.query_disable:
+                                        env.query_disable.remove(self.in_hand)
+                                    self.in_hand = None
                         elif isinstance(self.in_hand, Breadboard) or isinstance(self.in_hand, PowerSupply):
                             relative_mouse = self.relative_mouse()
                             point = (math.floor(relative_mouse[0]/self.zoom), math.floor(relative_mouse[1]/self.zoom))
@@ -257,6 +251,11 @@ class Project:
                     size = tuple(map(mul, scale, surf.get_size()))
                     surf = pygame.transform.scale(surf, size)
                     mouse_relative = (mouse_relative[0] - self.point_hovered.parent.radius*scale[0], mouse_relative[1])
+                    if self.point_hovered.parent.ic_allowed(self.in_hand, self.point_hovered):
+                        colour = (255, 255, 255, 128)
+                    else:
+                        colour = (200, 0, 0, 128)
+                    surf.fill(colour, None, pygame.BLEND_RGBA_MULT)
                     self.win.blit(surf, mouse_relative)
                 else:
 

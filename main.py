@@ -1,3 +1,4 @@
+import PySpice.Spice.NgSpice.Shared
 import pygame
 import os
 
@@ -15,8 +16,8 @@ from ui.button import Button, ElementManager
 from ui.interface import TabbedMenu
 
 from protosim.project import Project
-from logic.electronics import Wire, Sink, Source, Node
-from logic.parts import PartManager, Part, parse, PowerSupply
+from logic.electronics import Wire, Sink, Source, Node, SN74HC00
+from logic.parts import PartManager, Part, parse, PowerSupply, Breadboard, IntegratedCircuit
 
 # Versioning
 version = "0.0.1"
@@ -177,14 +178,34 @@ def main():
         clock.tick(fps)
 
         circuit = Circuit("dev", ground="gnd")
+        circuit.model('t-nmos', 'NMOS', level=1)
+        circuit.model('t-pmos', 'PMOS', level=1)
 
         supplies = [supply for supply in project.boards.values() if isinstance(supply, PowerSupply)]
+        boards = [board for board in project.boards.values() if isinstance(board, Breadboard)]
         for index, supply in enumerate(supplies):
             circuit.V(index, supply.points[0].common.uuid, supply.points[1].common.uuid, supply.voltage)
         for index, wire in enumerate(project.wires):
             circuit.R(index, wire.point_a.common.uuid, wire.point_b.common.uuid, 0)
+        for index, board in enumerate(boards):
+            for jndex, ic in enumerate(board.plugins):
+                ic_object = board.plugins[ic]
+                if isinstance(ic_object, IntegratedCircuit):
+                    circuit.subcircuit(SN74HC00(f'7400{index}{jndex}'))
+                    circuit.X(f'{index}{jndex}', f'7400{index}{jndex}',
+                              ic_object.pins_to_nodes[13], ic_object.pins_to_nodes[0], ic_object.pins_to_nodes[1],
+                              ic_object.pins_to_nodes[2], ic_object.pins_to_nodes[3], ic_object.pins_to_nodes[4],
+                              ic_object.pins_to_nodes[5], ic_object.pins_to_nodes[8], ic_object.pins_to_nodes[9],
+                              ic_object.pins_to_nodes[7], ic_object.pins_to_nodes[11], ic_object.pins_to_nodes[12],
+                              ic_object.pins_to_nodes[10], ic_object.pins_to_nodes[6])
 
-        print(circuit)
+        try:
+            if len(circuit.elements):
+                analysis = circuit.simulator().operating_point().nodes
+            else:
+                analysis = {}
+        except PySpice.Spice.NgSpice.Shared.NgSpiceCommandError:
+            analysis = {}
 
         # Check for new events 
         for event in pygame.event.get():

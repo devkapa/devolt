@@ -134,9 +134,11 @@ class Part:
     BOARD_DESC = "Breadboards are plastic holed boards in which electronic components can be inserted and connected " \
                  "with jumper wires for prototyping and experimenting with circuits. After testing, components " \
                  "can be easily re-wired."
-    IC_DESC = "Integrated circuits (ICs) are small electronic devices that contain interconnected electronic " \
-              "components on a single chip of semiconductor material, allowing for small, efficient devices that can " \
-              "perform logic, such as mathematics."
+    IC_DESC = "Integrated circuits (ICs) are small devices that contain interconnected electronic components on a " \
+              f"single chip allowing for small, efficient chips that can perform logic. {' '*170}" \
+              "NOTE: You must tie unused inputs on ICs to ground or 5V for the chip to function. In real life, this " \
+              "is good practice as to maintain a healthy chip temperature and avoid high-impedance floating inputs, " \
+              "which may cause confusing, unexpected logic errors."
     ELECTRONICS_DESC = "Electrical components, such as resistors, capacitors, diodes, and transistors, are basic " \
                        "building blocks used in electronic circuits to control the flow of electricity and create " \
                        "complex circuits that perform specific functions."
@@ -255,6 +257,17 @@ class Breadboard(Part):
                 for node_uuid in plugin.pins_to_nodes.values():
                     if node_uuid in requirements:
                         return True
+        return False
+
+    def ic_allowed(self, ic, point_hovered):
+        discriminator = point_hovered.discriminator
+        if discriminator.segment == 0:
+            rows = self.main_board_config.per_column_rows
+            if discriminator.row == (rows - 1):
+                columns = self.main_board_config.per_segment_columns
+                if discriminator.column + (ic.dip_count / 2) <= columns:
+                    col = self.ic_collision(discriminator, ic.dip_count)
+                    return not col
         return False
 
     def surface(self, real_pos, scale):
