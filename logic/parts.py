@@ -1,4 +1,6 @@
+import math
 import os.path
+import textwrap
 
 import pygame.image
 import xml.etree.ElementTree as Et
@@ -91,10 +93,21 @@ def parse(xml_path):
                 if part_type == "ic":
                     ic_config = part.find("icConfig")
                     dip_count = int(ic_config.find("dipCount").text)
+                    raw_spice = textwrap.dedent(ic_config.find("rawSpice").text)
+                    spice_nodes = tuple(ic_config.find("spiceNodes").text.split(" "))
 
-                    ic = (part_name, part_desc, part_texture, part_picture, dip_count), \
+                    ic = (part_name, part_desc, part_texture, part_picture, dip_count, raw_spice, spice_nodes), \
                         IntegratedCircuit
                     ics[part_uid] = ic
+
+                if part_type == "led":
+                    led_config = part.find("ledConfig")
+                    on_colour = tuple(int(i) for i in led_config.find("onColour").text.split(','))
+                    off_colour = tuple(int(i) for i in led_config.find("offColour").text.split(','))
+
+                    led = (part_name, part_desc, part_texture, part_picture, on_colour, off_colour), \
+                        LED
+                    electronics[part_uid] = led
 
                 # TODO: Other part types
 
@@ -132,13 +145,13 @@ class PartManager:
 
 class Part:
     BOARD_DESC = "Breadboards are plastic holed boards in which electronic components can be inserted and connected " \
-                 "with jumper wires for prototyping and experimenting with circuits. After testing, components " \
-                 "can be easily re-wired."
+                 "with jumper wires for experimenting with circuits. To connect jumper wires, simply click on a " \
+                 "breadboard or power supply hole and drag the new wire to your desired point."
     IC_DESC = "Integrated circuits (ICs) are small devices that contain interconnected electronic components on a " \
               f"single chip allowing for small, efficient chips that can perform logic. {' '*170}" \
-              "NOTE: You must tie unused inputs on ICs to ground or 5V for the chip to function. In real life, this " \
-              "is good practice as to maintain a healthy chip temperature and avoid high-impedance floating inputs, " \
-              "which may cause confusing, unexpected logic errors."
+              "NOTE: You must tie unused inputs on ICs to ground or 5V for de:volt simulation to function. This " \
+              "practice encourages you to maintain healthy chip temperature and avoid high-impedance floating " \
+              "inputs, which may cause confusing, unexpected logic errors in real life circuitry."
     ELECTRONICS_DESC = "Electrical components, such as resistors, capacitors, diodes, and transistors, are basic " \
                        "building blocks used in electronic circuits to control the flow of electricity and create " \
                        "complex circuits that perform specific functions."
@@ -247,15 +260,15 @@ class Breadboard(Part):
             else:
                 f_x = i + (ic_dips - 1) - (2 * i)
                 discriminator = (ic_discrim.segment, ic_discrim.rep, ic_discrim.column + f_x, ic_discrim.row)
-            pins_to_nodes[i] = self.main_board_rects[discriminator][1].uuid
+            pins_to_nodes[i] = self.main_board_rects[discriminator][1]
         return pins_to_nodes
 
     def ic_collision(self, ic_discrim, ic_dips):
-        requirements = list(self.ic_requirements(ic_discrim, ic_dips).values())
+        requirements = [i.uuid for i in self.ic_requirements(ic_discrim, ic_dips).values()]
         for plugin in self.plugins.values():
             if isinstance(plugin, IntegratedCircuit):
-                for node_uuid in plugin.pins_to_nodes.values():
-                    if node_uuid in requirements:
+                for node in plugin.pins_to_nodes.values():
+                    if node.uuid in requirements:
                         return True
         return False
 
@@ -270,14 +283,33 @@ class Breadboard(Part):
                     return not col
         return False
 
+    def point_to_coord(self, real_pos, point, scale):
+        for rect_group in [self.main_board_rects, self.pr_rects]:
+            for coord in rect_group:
+                p = rect_group[coord][2]
+                if p == point:
+                    r = rect_group[coord][0].copy()
+                    real_r_pos = tuple(map(sum, zip(real_pos, (r.centerx * scale[0], r.centery * scale[1]))))
+                    return real_r_pos
+        return 0, 0
+
     def surface(self, real_pos, scale):
         rect_hovered = None
         surface = self.texture.copy()
         for plugin in self.plugins:
-            plugin_rect = self.main_board_rects[plugin][0]
-            plugin_pos = (plugin_rect.left, plugin_rect.centery)
-            surface.blit(self.plugins[plugin].surface(self)[0], plugin_pos)
-        incomplete_wire = any(isinstance(x, BreadboardPoint) or isinstance(x, IntegratedCircuit) for x in self.env.query_disable)
+            plugin_obj = self.plugins[plugin]
+            plugin_rect = self.main_board_rects[plugin.discriminator][0]
+            plugin_surf = plugin_obj.surface(self)[0]
+            plugin_size = plugin_surf.get_width(), plugin_surf.get_height()
+            if isinstance(plugin_obj, IntegratedCircuit):
+                plugin_pos = (plugin_rect.left, plugin_rect.centery)
+            else:
+                plugin_pos = (plugin_rect.centerx - plugin_size[0]/2, plugin_rect.centery - plugin_size[1]/2)
+            if isinstance(plugin_obj, LED) and not plugin_obj.cathode_connecting:
+                width = math.floor(4/scale[0])
+                pygame.draw.line(surface, COL_IC_PIN, plugin_rect.center, plugin_obj.cathode_point.rect.center, width=width)
+            surface.blit(plugin_surf, plugin_pos)
+        incomplete_wire = any(isinstance(x, BreadboardPoint) or isinstance(x, PluginPart) for x in self.env.query_disable)
         if not len(self.env.query_disable) or incomplete_wire:
             surface_rect = self.texture.get_rect().copy()
             surface_rect.w *= scale[0]
@@ -322,11 +354,34 @@ class PluginPart(Part):
         pass
 
 
+class LED(PluginPart):
+
+    def __init__(self, name, desc, texture, preview_texture, on_colour, off_colour, env):
+        super().__init__(name, desc, texture, preview_texture, env)
+        self.state = 0
+        self.on_colour = on_colour
+        self.off_colour = off_colour
+        self.cathode_connecting = False
+        self.anode_point = None
+        self.cathode_point = None
+
+    def surface(self, hovered_board):
+        inch_tenth = hovered_board.inch_tenth
+        surface = pygame.Surface((inch_tenth*2, inch_tenth*2))
+        surface.set_colorkey((0, 0, 0))
+        pygame.draw.circle(surface, self.off_colour, surface.get_rect().center, inch_tenth)
+        if self.state:
+            pygame.draw.circle(surface, self.on_colour, surface.get_rect().center, math.floor(3*(inch_tenth/4)))
+        return surface, None
+
+
 class IntegratedCircuit(PluginPart):
 
-    def __init__(self, name, desc, texture, preview_texture, dip_count, env):
+    def __init__(self, name, desc, texture, preview_texture, dip_count, raw_spice, spice_nodes, env):
         super().__init__(name, desc, texture, preview_texture, env)
         self.dip_count = dip_count
+        self.raw_spice = raw_spice
+        self.spice_nodes = spice_nodes
         self.pins_to_nodes = {}
 
     def draw(self, inch_tenth, radius, gap):
@@ -347,14 +402,8 @@ class IntegratedCircuit(PluginPart):
         return win
 
     def surface(self, hovered_board):
-        if hovered_board is None:
-            inch_tenth, radius, gap = 25, 25, 60
-        else:
-            main_board_config = hovered_board.main_board_config
-            inch_tenth, radius = hovered_board.inch_tenth, hovered_board.radius
-            gap = main_board_config.segment_gap - (main_board_config.per_column_rows*inch_tenth)
+        main_board_config = hovered_board.main_board_config
+        inch_tenth, radius = hovered_board.inch_tenth, hovered_board.radius
+        gap = main_board_config.segment_gap - (main_board_config.per_column_rows*inch_tenth)
         surface = self.draw(inch_tenth, radius, gap)
-        rect_hovered = None
-        if hovered_board is not None:
-            pass
-        return surface, rect_hovered
+        return surface, None

@@ -27,6 +27,8 @@ class Project:
         self.incomplete_wire = None
         self.handler = TextHandler(env, 'Play-Regular.ttf', 25)
         self.drag_warning = self.handler.render("Drag above a breadboard hole", colour=COL_HOME_BKG)
+        self.anode_warning = self.handler.render("Select anode", colour=COL_BLACK)
+        self.cathode_warning = self.handler.render("Select cathode", colour=COL_BLACK)
 
     def shift(self, x, y):
         self.offset_x += x
@@ -130,19 +132,19 @@ class Project:
                         self.in_hand = None
 
                     if mouse_pressed[0]:
-                        from logic.parts import Breadboard, PowerSupply, IntegratedCircuit
+                        from logic.parts import Breadboard, PowerSupply, IntegratedCircuit, LED
                         if isinstance(self.in_hand, IntegratedCircuit):
                             if self.point_hovered is not None:
                                 parent = self.point_hovered.parent
                                 discriminator = self.point_hovered.discriminator
                                 if parent.ic_allowed(self.in_hand, self.point_hovered):
-                                    parent.plugins[discriminator] = self.in_hand
+                                    parent.plugins[self.point_hovered] = self.in_hand
                                     req = parent.ic_requirements(discriminator, self.in_hand.dip_count)
                                     self.in_hand.pins_to_nodes = req
                                     if self.in_hand in env.query_disable:
                                         env.query_disable.remove(self.in_hand)
                                     self.in_hand = None
-                        elif isinstance(self.in_hand, Breadboard) or isinstance(self.in_hand, PowerSupply):
+                        if isinstance(self.in_hand, Breadboard) or isinstance(self.in_hand, PowerSupply):
                             relative_mouse = self.relative_mouse()
                             point = (math.floor(relative_mouse[0]/self.zoom), math.floor(relative_mouse[1]/self.zoom))
                             occupying_points = []
@@ -241,7 +243,7 @@ class Project:
             pygame.draw.line(self.win, wire.colour, a_real_center, b_real_center, width=2)
 
         if self.in_hand is not None:
-            from logic.parts import PluginPart
+            from logic.parts import PluginPart, IntegratedCircuit, LED
             if isinstance(self.in_hand, PluginPart):
                 mouse_pos = pygame.mouse.get_pos()
                 mouse_relative = tuple(map(lambda i, j: i - j, mouse_pos, self.pos))
@@ -251,14 +253,25 @@ class Project:
                     size = tuple(map(mul, scale, surf.get_size()))
                     surf = pygame.transform.scale(surf, size)
                     mouse_relative = (mouse_relative[0] - self.point_hovered.parent.radius*scale[0], mouse_relative[1])
-                    if self.point_hovered.parent.ic_allowed(self.in_hand, self.point_hovered):
-                        colour = (255, 255, 255, 128)
+                    if isinstance(self.in_hand, IntegratedCircuit):
+                        if self.point_hovered.parent.ic_allowed(self.in_hand, self.point_hovered):
+                            colour = (255, 255, 255, 128)
+                        else:
+                            colour = (200, 0, 0, 128)
+                        surf.fill(colour, None, pygame.BLEND_RGBA_MULT)
+                    if isinstance(self.in_hand, LED):
+                        if self.in_hand.cathode_connecting:
+                            real_pos = self.convert_point(temp_positions[self.point_hovered.parent][1])
+                            scale = temp_positions[self.point_hovered.parent][0]
+                            point = self.point_hovered.parent.point_to_coord(real_pos, self.in_hand.anode_point, scale)
+                            pygame.draw.line(self.win, COL_IC_PIN, point, mouse_relative, width=4)
+                            self.win.blit(self.cathode_warning, mouse_relative)
+                        else:
+                            self.win.blit(surf, mouse_relative)
+                            self.win.blit(self.anode_warning, (mouse_relative[0]+surf.get_width(), mouse_relative[1]))
                     else:
-                        colour = (200, 0, 0, 128)
-                    surf.fill(colour, None, pygame.BLEND_RGBA_MULT)
-                    self.win.blit(surf, mouse_relative)
+                        self.win.blit(surf, mouse_relative)
                 else:
-
                     self.win.blit(self.drag_warning, mouse_relative)
             else:
                 relative_mouse = self.relative_mouse()
