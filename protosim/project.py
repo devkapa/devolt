@@ -115,21 +115,7 @@ class Project:
 
                 self.last_mouse_pos = pygame.mouse.get_pos()
 
-                if self.incomplete_wire is not None:
-
-                    if keys_pressed[pygame.K_ESCAPE]:
-
-                        if self.incomplete_wire in env.query_disable:
-                            env.query_disable.remove(self.incomplete_wire)
-                        self.incomplete_wire = None
-
                 if self.in_hand is not None:
-
-                    if keys_pressed[pygame.K_ESCAPE]:
-
-                        if self.in_hand in env.query_disable:
-                            env.query_disable.remove(self.in_hand)
-                        self.in_hand = None
 
                     if mouse_pressed[0]:
                         from logic.parts import Breadboard, PowerSupply, IntegratedCircuit, LED
@@ -239,8 +225,17 @@ class Project:
             a_real_center = tuple(map(sum, zip(a_pos, a_scaled_center)))
             b_scaled_center = tuple(map(mul, b_scale, b_rect.center))
             b_real_center = tuple(map(sum, zip(b_pos, b_scaled_center)))
-            pygame.draw.line(self.win, COL_BLACK, a_real_center, b_real_center, width=4)
+            wire_rect = pygame.draw.line(self.win, COL_BLACK, a_real_center, b_real_center, width=4)
+            wire_rect.topleft = tuple(map(sum, zip(wire_rect.topleft, self.pos)))
             pygame.draw.line(self.win, wire.colour, a_real_center, b_real_center, width=2)
+            if wire_rect.collidepoint(pygame.mouse.get_pos()):
+                if not len(self.env.query_disable) or wire in self.env.query_disable:
+                    if wire not in self.env.query_disable:
+                        self.env.query_disable.append(wire)
+                    pygame.draw.line(self.win, COL_SELECTED, a_real_center, b_real_center, width=4)
+            else:
+                if wire in self.env.query_disable:
+                    self.env.query_disable.remove(wire)
 
         if self.in_hand is not None:
             from logic.parts import PluginPart, IntegratedCircuit, LED

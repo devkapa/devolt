@@ -338,6 +338,17 @@ def main():
                                             ENV.query_disable.remove(project.in_hand)
                                         project.in_hand = None
 
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        if project.in_hand is not None:
+                            if project.in_hand in ENV.query_disable:
+                                ENV.query_disable.remove(project.in_hand)
+                            project.in_hand = None
+                        if project.incomplete_wire is not None:
+                            if project.incomplete_wire in ENV.query_disable:
+                                ENV.query_disable.remove(project.incomplete_wire)
+                            project.incomplete_wire = None
+
         # Display the page corresponding to the program state
         if current_state == HOME:
 

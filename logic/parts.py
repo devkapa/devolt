@@ -298,7 +298,7 @@ class Breadboard(Part):
         surface = self.texture.copy()
         for plugin in self.plugins:
             plugin_obj = self.plugins[plugin]
-            plugin_rect = self.main_board_rects[plugin.discriminator][0]
+            plugin_rect = plugin.rect
             plugin_surf = plugin_obj.surface(self)[0]
             plugin_size = plugin_surf.get_width(), plugin_surf.get_height()
             if isinstance(plugin_obj, IntegratedCircuit):
@@ -309,6 +309,18 @@ class Breadboard(Part):
                 width = math.floor(4/scale[0])
                 pygame.draw.line(surface, COL_IC_PIN, plugin_rect.center, plugin_obj.cathode_point.rect.center, width=width)
             surface.blit(plugin_surf, plugin_pos)
+            if not len(self.env.query_disable) or plugin_rect in self.env.query_disable:
+                scaled_topleft = tuple(map(lambda i, j, k: (i*j)+k, plugin_pos, scale, real_pos))
+                plugin_surf_rect = plugin_surf.get_rect(topleft=scaled_topleft)
+                plugin_surf_rect.w *= scale[0]
+                plugin_surf_rect.h *= scale[1]
+                if plugin_surf_rect.collidepoint(pygame.mouse.get_pos()):
+                    if plugin_rect not in self.env.query_disable:
+                        self.env.query_disable.append(plugin_rect)
+                    pygame.draw.rect(surface, COL_SELECTED, plugin_surf.get_rect(topleft=plugin_pos), width=math.floor(4/scale[0]))
+                else:
+                    if plugin_rect in self.env.query_disable:
+                        self.env.query_disable.remove(plugin_rect)
         incomplete_wire = any(isinstance(x, BreadboardPoint) or isinstance(x, PluginPart) for x in self.env.query_disable)
         if not len(self.env.query_disable) or incomplete_wire:
             surface_rect = self.texture.get_rect().copy()
