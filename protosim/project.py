@@ -26,9 +26,11 @@ class Project:
         self.point_hovered = None
         self.incomplete_wire = None
         self.handler = TextHandler(env, 'Play-Regular.ttf', 25)
+        wire_colour_handler = TextHandler(env, 'Play-Regular.ttf', 18)
         self.drag_warning = self.handler.render("Drag above a breadboard hole", colour=COL_HOME_BKG)
         self.anode_warning = self.handler.render("Select anode", colour=COL_BLACK)
         self.cathode_warning = self.handler.render("Select cathode", colour=COL_BLACK)
+        self.colour_text = wire_colour_handler.render("Wire Colour", colour=COL_BLACK)
 
     def shift(self, x, y):
         self.offset_x += x
@@ -217,9 +219,10 @@ class Project:
             b_scaled_center = tuple(map(mul, b_scale, b_rect.center))
             b_real_center = tuple(map(sum, zip(b_pos, b_scaled_center)))
             wire_rect = pygame.draw.line(self.win, COL_BLACK, a_real_center, b_real_center, width=4)
-            wire_rect.topleft = tuple(map(sum, zip(wire_rect.topleft, self.pos)))
+            collide_checker = wire_rect.copy()
+            collide_checker.topleft = tuple(map(sum, zip(wire_rect.topleft, self.pos)))
             pygame.draw.line(self.win, wire.colour, a_real_center, b_real_center, width=2)
-            if wire_rect.collidepoint(pygame.mouse.get_pos()):
+            if collide_checker.collidepoint(pygame.mouse.get_pos()):
                 if not len(self.env.query_disable) or wire in self.env.query_disable:
                     if wire not in self.env.query_disable:
                         self.env.query_disable.append(wire)
@@ -230,7 +233,33 @@ class Project:
                 if wire in self.env.query_disable:
                     self.env.query_disable.remove(wire)
             if self.env.selected == wire:
+                colour_rect = pygame.Rect(wire_rect.bottomright, (310, 80))
+                real_colour_rect = colour_rect.copy()
+                real_colour_rect.topleft = tuple(map(sum, zip(colour_rect.topleft, self.pos)))
+                colours = [COL_WIRE_RED, COL_WIRE_BLACK,COL_WIRE_YELLOW, COL_WIRE_WHITE, COL_WIRE_GREEN, COL_WIRE_BLUE]
                 pygame.draw.line(self.win, COL_SELECTED, a_real_center, b_real_center, width=4)
+                pygame.draw.rect(self.win, COL_HOME_SHADOW, colour_rect)
+                self.win.blit(self.colour_text, (colour_rect.x + 10, colour_rect.y + 5))
+                accumulated = 10
+                for colour in colours:
+                    top_left = (colour_rect.x + accumulated, colour_rect.y + self.colour_text.get_height() + 10)
+                    specific_colour = pygame.Rect(top_left, (40, 40))
+                    real = specific_colour.copy()
+                    real.topleft = tuple(map(sum, zip(specific_colour.topleft, self.pos)))
+                    pygame.draw.rect(self.win, colour, specific_colour)
+                    if wire.colour == colour:
+                        pygame.draw.line(self.win, COL_HOME_SHADOW, specific_colour.topleft, specific_colour.bottomright, width=4)
+                        pygame.draw.line(self.win, COL_HOME_SHADOW, specific_colour.topright, specific_colour.bottomleft, width=4)
+                    if real.collidepoint(pygame.mouse.get_pos()):
+                        if specific_colour not in self.env.query_disable:
+                            self.env.query_disable.append(specific_colour)
+                        if pygame.mouse.get_pressed()[0]:
+                            wire.colour = colour
+                    else:
+                        if specific_colour in self.env.query_disable:
+                            self.env.query_disable.remove(specific_colour)
+                    accumulated += 50
+            pygame.draw.line(self.win, wire.colour, a_real_center, b_real_center, width=1)
 
         if self.in_hand is not None:
             from logic.parts import PluginPart, IntegratedCircuit, LED

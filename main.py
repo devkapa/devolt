@@ -318,6 +318,7 @@ def main():
                             if project.point_hovered is not None:
                                 if project.incomplete_wire is None:
                                     project.incomplete_wire = project.point_hovered
+                                    ENV.selected = None
                                 else:
                                     project.wires.append(Wire(project.incomplete_wire, project.point_hovered))
                                     if project.incomplete_wire in ENV.query_disable:
@@ -341,6 +342,7 @@ def main():
                 if event.type == pygame.KEYDOWN:
 
                     if event.key == pygame.K_ESCAPE:
+
                         if project.in_hand is not None:
                             if isinstance(project.in_hand, LED) and project.in_hand.cathode_connecting:
                                 del project.in_hand.anode_point.parent.plugins[project.in_hand.anode_point]
@@ -351,6 +353,9 @@ def main():
                             if project.incomplete_wire in ENV.query_disable:
                                 ENV.query_disable.remove(project.incomplete_wire)
                             project.incomplete_wire = None
+
+                        if ENV.selected is not None:
+                            ENV.selected = None
 
                     if event.key == pygame.K_DELETE:
                         if ENV.selected is not None:

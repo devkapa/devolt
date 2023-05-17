@@ -34,7 +34,7 @@ class Sink(Node):
 
 class Wire:
 
-    def __init__(self, point_a, point_b, colour=COL_RED):
+    def __init__(self, point_a, point_b, colour=COL_WIRE_RED):
         self.point_a = point_a
         self.point_b = point_b
         self.colour = colour
