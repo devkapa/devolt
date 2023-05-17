@@ -152,7 +152,7 @@ class Part:
               "NOTE: You must tie unused inputs on ICs to ground or 5V for de:volt simulation to function. This " \
               "practice encourages you to maintain healthy chip temperature and avoid high-impedance floating " \
               "inputs, which may cause confusing, unexpected logic errors in real life circuitry."
-    ELECTRONICS_DESC = "Electrical components, such as resistors, capacitors, diodes, and transistors, are basic " \
+    ELECTRONICS_DESC = "Electrical components, such as resistors, diodes and transistors, are basic " \
                        "building blocks used in electronic circuits to control the flow of electricity and create " \
                        "complex circuits that perform specific functions."
 
@@ -186,19 +186,28 @@ class PowerSupply(Part):
 
     def surface(self, real_pos, scale):
         rect_hovered = None
-        surface = self.texture
+        surface = self.texture.copy()
         incomplete_wire = any(isinstance(x, BreadboardPoint) for x in self.env.query_disable)
         if not len(self.env.query_disable) or incomplete_wire:
-            for i, rect in enumerate(self.rects):
-                r = rect.copy()
-                real_r_pos = tuple(map(sum, zip(real_pos, (r.x * scale[0], r.y * scale[1]))))
-                r.w *= scale[0]
-                r.h *= scale[1]
-                r.topleft = real_r_pos
-                if r.collidepoint(pygame.mouse.get_pos()):
-                    rect_hovered = self.points[i]
-                    surface = surface.copy()
-                    pygame.draw.rect(surface, COL_BLACK, rect)
+            surface_rect = surface.get_rect().copy()
+            surface_rect.w *= scale[0]
+            surface_rect.h *= scale[1]
+            surface_rect.topleft = real_pos
+            if surface_rect.collidepoint(pygame.mouse.get_pos()):
+                for i, rect in enumerate(self.rects):
+                    r = rect.copy()
+                    real_r_pos = tuple(map(sum, zip(real_pos, (r.x * scale[0], r.y * scale[1]))))
+                    r.w *= scale[0]
+                    r.h *= scale[1]
+                    r.topleft = real_r_pos
+                    if r.collidepoint(pygame.mouse.get_pos()):
+                        rect_hovered = self.points[i]
+                        pygame.draw.rect(surface, COL_BLACK, rect)
+                pygame.draw.rect(surface, COL_SELECTED, self.texture.get_rect(), width=math.floor(2 / scale[0]))
+                if pygame.mouse.get_pressed()[0] and rect_hovered is None:
+                    self.env.selected = self
+        if self.env.selected == self:
+            pygame.draw.rect(surface, COL_SELECTED, self.texture.get_rect(), width=math.floor(4 / scale[0]))
         return surface, rect_hovered
 
 
@@ -317,10 +326,15 @@ class Breadboard(Part):
                 if plugin_surf_rect.collidepoint(pygame.mouse.get_pos()):
                     if plugin_rect not in self.env.query_disable:
                         self.env.query_disable.append(plugin_rect)
-                    pygame.draw.rect(surface, COL_SELECTED, plugin_surf.get_rect(topleft=plugin_pos), width=math.floor(4/scale[0]))
+                    pygame.draw.rect(surface, COL_SELECTED, plugin_surf.get_rect(topleft=plugin_pos), width=math.floor(2 / scale[0]))
+                    if pygame.mouse.get_pressed()[0]:
+                        plugin_obj.deletion_key = self, plugin
+                        self.env.selected = plugin_obj
                 else:
                     if plugin_rect in self.env.query_disable:
                         self.env.query_disable.remove(plugin_rect)
+            if self.env.selected == plugin_obj:
+                pygame.draw.rect(surface, COL_SELECTED, plugin_surf.get_rect(topleft=plugin_pos), width=math.floor(4 / scale[0]))
         incomplete_wire = any(isinstance(x, BreadboardPoint) or isinstance(x, PluginPart) for x in self.env.query_disable)
         if not len(self.env.query_disable) or incomplete_wire:
             surface_rect = self.texture.get_rect().copy()
@@ -338,6 +352,11 @@ class Breadboard(Part):
                         if r.collidepoint(pygame.mouse.get_pos()):
                             rect_hovered = rect_group[coord][2]
                             pygame.draw.rect(surface, COL_BLACK, rect_group[coord][0])
+                pygame.draw.rect(surface, COL_SELECTED, self.texture.get_rect(), width=math.floor(2 / scale[0]))
+                if pygame.mouse.get_pressed()[0] and rect_hovered is None:
+                    self.env.selected = self
+        if self.env.selected == self:
+            pygame.draw.rect(surface, COL_SELECTED, self.texture.get_rect(), width=math.floor(4/scale[0]))
         return surface, rect_hovered
 
 
@@ -361,6 +380,7 @@ class PluginPart(Part):
 
     def __init__(self, name, desc, texture, preview_texture, env):
         super().__init__(name, desc, texture, preview_texture, env)
+        self.deletion_key = None
 
     def surface(self, hovered_board):
         pass

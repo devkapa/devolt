@@ -7,6 +7,7 @@ class Environment:
     def __init__(self):
         self.unfrozen = getattr(sys, 'frozen', False)
         self.query_disable = []
+        self.selected = None
         
     def get_this_path(self):
         return sys._MEIPASS if self.unfrozen else os.path.dirname(__file__)

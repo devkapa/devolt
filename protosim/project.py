@@ -153,15 +153,6 @@ class Project:
                                     env.query_disable.remove(self.in_hand)
                                 self.in_hand = None
 
-                    return
-
-                if self.incomplete_wire is None and mouse_pressed[2]:
-                    relative_mouse = self.relative_mouse()
-                    point = (math.floor(relative_mouse[0] / self.zoom), math.floor(relative_mouse[1] / self.zoom))
-                    if point in self.boards:
-                        if isinstance(self.boards[point], Occupier):
-                            self.delete(self.boards[point].parent_coord)
-
     def gridlines(self, win, axis):
         current_line = 0
         while abs(current_line-self.origin[axis]) % self.zoom != 0:
@@ -233,9 +224,13 @@ class Project:
                     if wire not in self.env.query_disable:
                         self.env.query_disable.append(wire)
                     pygame.draw.line(self.win, COL_SELECTED, a_real_center, b_real_center, width=4)
+                    if pygame.mouse.get_pressed()[0]:
+                        self.env.selected = wire
             else:
                 if wire in self.env.query_disable:
                     self.env.query_disable.remove(wire)
+            if self.env.selected == wire:
+                pygame.draw.line(self.win, COL_SELECTED, a_real_center, b_real_center, width=4)
 
         if self.in_hand is not None:
             from logic.parts import PluginPart, IntegratedCircuit, LED
@@ -260,10 +255,15 @@ class Project:
                             scale = temp_positions[self.point_hovered.parent][0]
                             point = self.point_hovered.parent.point_to_coord(real_pos, self.in_hand.anode_point, scale)
                             pygame.draw.line(self.win, COL_IC_PIN, point, mouse_relative, width=4)
+                            rect_size = self.cathode_warning.get_size()
+                            pygame.draw.rect(self.win, COL_WHITE, pygame.Rect(mouse_relative, rect_size))
                             self.win.blit(self.cathode_warning, mouse_relative)
                         else:
                             self.win.blit(surf, mouse_relative)
-                            self.win.blit(self.anode_warning, (mouse_relative[0]+surf.get_width(), mouse_relative[1]))
+                            label_coord = (mouse_relative[0]+surf.get_width(), mouse_relative[1])
+                            rect_size = self.anode_warning.get_size()
+                            pygame.draw.rect(self.win, COL_WHITE, pygame.Rect(label_coord, rect_size))
+                            self.win.blit(self.anode_warning, label_coord)
                     else:
                         self.win.blit(surf, mouse_relative)
                 else:

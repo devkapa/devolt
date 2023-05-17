@@ -19,13 +19,13 @@ from ui.interface import TabbedMenu
 
 from protosim.project import Project
 from logic.electronics import Wire, ICSpiceSubCircuit, Sink
-from logic.parts import PartManager, Part, parse, PowerSupply, Breadboard, IntegratedCircuit, LED
+from logic.parts import PartManager, Part, parse, PowerSupply, Breadboard, IntegratedCircuit, LED, PluginPart
 
 # Versioning
 version = "0.0.1"
 
 # PySpice Logger
-# setup_logging(logging_level='INFO')
+setup_logging(logging_level='INFO')
 
 # Enable smart scaling
 flags = SCALED
@@ -339,8 +339,11 @@ def main():
                                         project.in_hand = None
 
                 if event.type == pygame.KEYDOWN:
+
                     if event.key == pygame.K_ESCAPE:
                         if project.in_hand is not None:
+                            if isinstance(project.in_hand, LED) and project.in_hand.cathode_connecting:
+                                del project.in_hand.anode_point.parent.plugins[project.in_hand.anode_point]
                             if project.in_hand in ENV.query_disable:
                                 ENV.query_disable.remove(project.in_hand)
                             project.in_hand = None
@@ -348,6 +351,28 @@ def main():
                             if project.incomplete_wire in ENV.query_disable:
                                 ENV.query_disable.remove(project.incomplete_wire)
                             project.incomplete_wire = None
+
+                    if event.key == pygame.K_DELETE:
+                        if ENV.selected is not None:
+                            if isinstance(ENV.selected, Breadboard):
+                                coord = [i for i in project.boards if project.boards[i] == ENV.selected][0]
+                                project.delete(coord)
+                                ENV.selected = None
+                                ENV.query_disable.clear()
+                            if isinstance(ENV.selected, PowerSupply):
+                                coord = [i for i in project.boards if project.boards[i] == ENV.selected][0]
+                                project.delete(coord)
+                                ENV.selected = None
+                                ENV.query_disable.clear()
+                            if isinstance(ENV.selected, PluginPart):
+                                board, coord = ENV.selected.deletion_key
+                                del board.plugins[coord]
+                                ENV.selected = None
+                                ENV.query_disable.clear()
+                            if isinstance(ENV.selected, Wire):
+                                project.wires.remove(ENV.selected)
+                                ENV.selected = None
+                                ENV.query_disable.clear()
 
         # Display the page corresponding to the program state
         if current_state == HOME:
