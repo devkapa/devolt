@@ -109,7 +109,7 @@ def parse(xml_path):
                         LED
                     electronics[part_uid] = led
 
-                # TODO: Other part types
+                # TODO: Other part types (resistor, transistor, diode)
 
             except TypeError:
                 continue
@@ -204,7 +204,7 @@ class PowerSupply(Part):
                         rect_hovered = self.points[i]
                         pygame.draw.rect(surface, COL_BLACK, rect)
                 pygame.draw.rect(surface, COL_SELECTED, self.texture.get_rect(), width=math.floor(2 / scale[0]))
-                if pygame.mouse.get_pressed()[0] and rect_hovered is None:
+                if pygame.mouse.get_pressed()[0] and rect_hovered is None and not incomplete_wire:
                     self.env.selected = self
         if self.env.selected == self:
             pygame.draw.rect(surface, COL_SELECTED, self.texture.get_rect(), width=math.floor(4 / scale[0]))
@@ -305,6 +305,7 @@ class Breadboard(Part):
     def surface(self, real_pos, scale):
         rect_hovered = None
         surface = self.texture.copy()
+        incomplete_wire = any(isinstance(x, BreadboardPoint) or isinstance(x, PluginPart) for x in self.env.query_disable)
         for plugin in self.plugins:
             plugin_obj = self.plugins[plugin]
             plugin_rect = plugin.rect
@@ -327,7 +328,7 @@ class Breadboard(Part):
                     if plugin_rect not in self.env.query_disable:
                         self.env.query_disable.append(plugin_rect)
                     pygame.draw.rect(surface, COL_SELECTED, plugin_surf.get_rect(topleft=plugin_pos), width=math.floor(2 / scale[0]))
-                    if pygame.mouse.get_pressed()[0]:
+                    if pygame.mouse.get_pressed()[0] and incomplete_wire is False:
                         plugin_obj.deletion_key = self, plugin
                         self.env.selected = plugin_obj
                 else:
@@ -335,7 +336,6 @@ class Breadboard(Part):
                         self.env.query_disable.remove(plugin_rect)
             if self.env.selected == plugin_obj:
                 pygame.draw.rect(surface, COL_SELECTED, plugin_surf.get_rect(topleft=plugin_pos), width=math.floor(4 / scale[0]))
-        incomplete_wire = any(isinstance(x, BreadboardPoint) or isinstance(x, PluginPart) for x in self.env.query_disable)
         if not len(self.env.query_disable) or incomplete_wire:
             surface_rect = self.texture.get_rect().copy()
             surface_rect.w *= scale[0]
@@ -353,7 +353,7 @@ class Breadboard(Part):
                             rect_hovered = rect_group[coord][2]
                             pygame.draw.rect(surface, COL_BLACK, rect_group[coord][0])
                 pygame.draw.rect(surface, COL_SELECTED, self.texture.get_rect(), width=math.floor(2 / scale[0]))
-                if pygame.mouse.get_pressed()[0] and rect_hovered is None:
+                if pygame.mouse.get_pressed()[0] and rect_hovered is None and not incomplete_wire:
                     self.env.selected = self
         if self.env.selected == self:
             pygame.draw.rect(surface, COL_SELECTED, self.texture.get_rect(), width=math.floor(4/scale[0]))

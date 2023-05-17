@@ -227,7 +227,7 @@ class Project:
                     if wire not in self.env.query_disable:
                         self.env.query_disable.append(wire)
                     pygame.draw.line(self.win, COL_SELECTED, a_real_center, b_real_center, width=4)
-                    if pygame.mouse.get_pressed()[0]:
+                    if pygame.mouse.get_pressed()[0] and self.incomplete_wire is None:
                         self.env.selected = wire
             else:
                 if wire in self.env.query_disable:
