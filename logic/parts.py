@@ -15,6 +15,8 @@ from ui.text import TextHandler
 BoardConfig = namedtuple("BoardConfig", "start_coord segment_gap per_segment_columns per_column_rows "
                                         "per_segment_rep_count per_segment_rep_gap rule")
 Rule = namedtuple("Rule", "segment repetition column row")
+SupplyInfo = namedtuple("SupplyInfo", "pos_rail neg_rail radius")
+Discriminator = namedtuple("Discriminator", "segment rep column row name")
 
 
 def get_board_config(element):
@@ -83,7 +85,6 @@ def parse(xml_path):
                     neg_node = power_config.find("negNodeCoord").text
                     neg_node = tuple(int(i) for i in neg_node.split(','))
 
-                    SupplyInfo = namedtuple("SupplyInfo", "pos_rail neg_rail radius")
                     pos_info = SupplyInfo(pos_node, neg_node, radius)
 
                     supply = (part_name, part_desc, part_texture, part_picture, size, voltage, pos_info, inch_tenth), \
@@ -160,6 +161,7 @@ class Part:
         path = env.get_main_path()
         self.name = name
         self.desc = desc
+        self.texture_name, self.preview_texture_name = texture, preview_texture
         self.texture = pygame.image.load(os.path.join(path, 'assets', 'textures', 'parts', texture))
         self.texture = self.texture.convert_alpha()
         self.preview_texture = pygame.image.load(os.path.join(path, 'assets', 'textures', 'parts', preview_texture))
@@ -174,6 +176,7 @@ class PowerSupply(Part):
         self.size = size
         self.inch_tenth = inch_tenth
         self.voltage = voltage
+        self.pos_info = pos_info
         neg_rail_coord = pos_info.neg_rail
         pos_rail_coord = pos_info.pos_rail
         radius = pos_info.radius
@@ -181,8 +184,17 @@ class PowerSupply(Part):
         neg_rect_tl = (neg_rail_coord[0] - radius, neg_rail_coord[1] - radius)
         rect_wh = (radius*2, radius*2)
         self.rects = [pygame.Rect(pos_rect_tl, rect_wh), pygame.Rect(neg_rect_tl, rect_wh)]
-        self.points = [BreadboardPoint(self, None, Source(), self.rects[0]),
-                       BreadboardPoint(self, None, Sink(), self.rects[1])]
+        self.points = [BreadboardPoint(self, Discriminator(0, 0, 0, 1, "main"), Source(), self.rects[0]),
+                       BreadboardPoint(self, Discriminator(0, 0, 0, 0, "main"), Sink(), self.rects[1])]
+
+    def __getstate__(self):
+        """Return state values to be pickled."""
+        return self.name, self.desc, self.texture_name, self.preview_texture_name, self.size, self.voltage, \
+            self.pos_info, self.inch_tenth
+
+    def __setstate__(self, state):
+        """Restore state from the unpickled state values."""
+        self.__init__(*state, pygame.env)
 
     def surface(self, real_pos, scale):
         rect_hovered = None
@@ -213,9 +225,7 @@ class PowerSupply(Part):
 
 class Breadboard(Part):
 
-    DISCRIMINATOR = namedtuple("Discriminator", "segment rep column row")
-
-    def __init__(self, name, desc, texture, preview_texture, size, inch_tenth, radius, main, power_rail, env):
+    def __init__(self, name, desc, texture, preview_texture, size, inch_tenth, radius, main, power_rail, env, plugins=None):
         super().__init__(name, desc, texture, preview_texture, env)
         self.size = size
         self.inch_tenth = inch_tenth
@@ -223,11 +233,43 @@ class Breadboard(Part):
         self.env = env
         self.main_board_config = main
         self.pr_config = power_rail
-        self.plugins = {}
-        self.main_board_rects = self.create_rects(main)
-        self.pr_rects = self.create_rects(power_rail)
+        self.plugins = {} if plugins is None else plugins
+        self.main_board_rects, self.main_rails = self.create_rects(main, "main")
+        self.pr_rects, self.pr_rails = self.create_rects(power_rail, "power")
 
-    def create_rects(self, board_config):
+    def __getstate__(self):
+        """Return state values to be pickled."""
+        return self.name, self.desc, self.texture_name, self.preview_texture_name, self.size, self.inch_tenth, \
+            self.radius, self.main_board_config, self.pr_config, self.plugins
+
+    def __setstate__(self, state):
+        """Restore state from the unpickled state values."""
+        self.__init__(*state[:-1], pygame.env, plugins=state[-1])
+        self.rejuvenate()
+
+    def rejuvenate(self):
+        for plugin in self.plugins:
+            plugin_obj = self.plugins[plugin]
+            if isinstance(plugin_obj, IntegratedCircuit):
+                new_reqs = self.ic_requirements(plugin.discriminator, plugin_obj.dip_count)
+                plugin_obj.pins_to_nodes = new_reqs
+            if isinstance(plugin_obj, LED):
+                old_anode_group = plugin_obj.anode_point.discriminator.name
+                group_1 = None
+                if old_anode_group == "main":
+                    group_1 = self.main_board_rects
+                elif old_anode_group == "power":
+                    group_1 = self.pr_rects
+                old_cathode_group = plugin_obj.cathode_point.discriminator.name
+                group_2 = None
+                if old_cathode_group == "main":
+                    group_2 = self.main_board_rects
+                elif old_cathode_group == "power":
+                    group_2 = self.pr_rects
+                plugin_obj.anode_point = group_1[plugin_obj.anode_point.discriminator][2]
+                plugin_obj.cathode_point = group_2[plugin_obj.cathode_point.discriminator][2]
+
+    def create_rects(self, board_config, name):
         if board_config is None:
             return {}
         rects = {}
@@ -250,25 +292,25 @@ class Breadboard(Part):
                                 found = rail
                         if found is None:
                             found = BreadboardRail(rail_discrim)
-                        rails.append(found)
+                            rails.append(found)
                         row_y = segment_y + (self.inch_tenth * row)
                         rect_tl = (column_x - (self.inch_tenth / 2), row_y - (self.inch_tenth / 2))
                         rect_wh = (self.inch_tenth, self.inch_tenth)
                         rect = pygame.Rect(rect_tl, rect_wh)
-                        discriminator = self.DISCRIMINATOR(segment, rep, column, row)
+                        discriminator = Discriminator(segment, rep, column, row, name)
                         point = BreadboardPoint(self, discriminator, found, rect)
                         rects[discriminator] = rect, found, point
 
-        return rects
+        return rects, rails
 
     def ic_requirements(self, ic_discrim, ic_dips):
         pins_to_nodes = {}
         for i in range(ic_dips):
             if i < ic_dips/2:
-                discriminator = (ic_discrim.segment + 1, ic_discrim.rep, ic_discrim.column + i, ic_discrim.row)
+                discriminator = (ic_discrim.segment + 1, ic_discrim.rep, ic_discrim.column + i, ic_discrim.row, ic_discrim.name)
             else:
                 f_x = i + (ic_dips - 1) - (2 * i)
-                discriminator = (ic_discrim.segment, ic_discrim.rep, ic_discrim.column + f_x, ic_discrim.row)
+                discriminator = (ic_discrim.segment, ic_discrim.rep, ic_discrim.column + f_x, ic_discrim.row, ic_discrim.name)
             pins_to_nodes[i] = self.main_board_rects[discriminator][1]
         return pins_to_nodes
 
@@ -388,14 +430,22 @@ class PluginPart(Part):
 
 class LED(PluginPart):
 
-    def __init__(self, name, desc, texture, preview_texture, on_colour, off_colour, env):
+    def __init__(self, name, desc, texture, preview_texture, on_colour, off_colour, env, anode_point=None, cathode_point=None):
         super().__init__(name, desc, texture, preview_texture, env)
         self.state = 0
         self.on_colour = on_colour
         self.off_colour = off_colour
         self.cathode_connecting = False
-        self.anode_point = None
-        self.cathode_point = None
+        self.anode_point = anode_point
+        self.cathode_point = cathode_point
+
+    def __getstate__(self):
+        """Return state values to be pickled."""
+        return self.name, self.desc, self.texture_name, self.preview_texture_name, self.on_colour, self.off_colour, self.anode_point, self.cathode_point
+
+    def __setstate__(self, state):
+        """Restore state from the unpickled state values."""
+        self.__init__(*state[:-2], pygame.env, anode_point=state[-2], cathode_point=state[-1])
 
     def surface(self, hovered_board):
         inch_tenth = hovered_board.inch_tenth
@@ -409,12 +459,20 @@ class LED(PluginPart):
 
 class IntegratedCircuit(PluginPart):
 
-    def __init__(self, name, desc, texture, preview_texture, dip_count, raw_spice, spice_nodes, env):
+    def __init__(self, name, desc, texture, preview_texture, dip_count, raw_spice, spice_nodes, env, pin_map=None):
         super().__init__(name, desc, texture, preview_texture, env)
         self.dip_count = dip_count
         self.raw_spice = raw_spice
         self.spice_nodes = spice_nodes
-        self.pins_to_nodes = {}
+        self.pins_to_nodes = {} if pin_map is None else pin_map
+
+    def __getstate__(self):
+        """Return state values to be pickled."""
+        return self.name, self.desc, self.texture_name, self.preview_texture_name, self.dip_count, self.raw_spice, self.spice_nodes, self.pins_to_nodes
+
+    def __setstate__(self, state):
+        """Restore state from the unpickled state values."""
+        self.__init__(*state[:-1], pygame.env, pin_map=state[-1])
 
     def draw(self, inch_tenth, radius, gap):
         win = pygame.Surface(((self.dip_count/2)*inch_tenth, gap+inch_tenth))

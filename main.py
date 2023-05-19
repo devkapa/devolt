@@ -1,3 +1,6 @@
+import math
+import pickle
+
 import PySpice.Spice.NgSpice.Shared
 import pygame
 import os
@@ -17,7 +20,7 @@ from ui.visualiser import Visualiser
 from ui.button import Button, ElementManager
 from ui.interface import TabbedMenu
 
-from protosim.project import Project
+from protosim.project import Project, Occupier
 from logic.electronics import Wire, ICSpiceSubCircuit, Sink
 from logic.parts import PartManager, Part, parse, PowerSupply, Breadboard, IntegratedCircuit, LED, PluginPart
 
@@ -56,6 +59,7 @@ SAVE_EVENT = pygame.USEREVENT + 6
 HOME_EVENT = pygame.USEREVENT + 7
 MENU_EVENT = pygame.USEREVENT + 8
 EDIT_EVENT = pygame.USEREVENT + 9
+PROJECT_CHANGE_EVENT = pygame.USEREVENT + 10
 
 
 def draw_homepage(win, homepage_title, homepage_version, visualiser, buttons):
@@ -95,7 +99,13 @@ def draw_sim(win, sidebar_width, project, buttons, title, sidebar):
 
 def open_dev():
     filetypes = (("de:volt Project", "*.dev"),)
-    file = fd.askopenfile(title="Open de:volt Project", initialdir=ENV.get_main_path(), filetypes=filetypes)
+    return fd.askopenfile(title="Open de:volt Project", initialdir=ENV.get_main_path(), filetypes=filetypes)
+
+
+def save_dev():
+    filetypes = (("de:volt Project", "*.dev"),)
+    file = fd.asksaveasfile(title="Save de:volt Project", initialdir=ENV.get_main_path(), filetypes=filetypes,
+                            defaultextension=".dev", initialfile="Untitled")
     return file
 
 
@@ -170,7 +180,6 @@ def main():
     # Project
     sidebar_width = SIDEBAR_WIDTH
 
-    # TEMPORARY, TODO: Project serialisation
     project = Project(WIDTH - sidebar_width, HEIGHT - ACTION_BAR_HEIGHT, ENV)
 
     # Parts
@@ -199,6 +208,8 @@ def main():
     save_button = Button(button_size, (WIDTH - 10 - button_dimensions, button_y), 'save.png', 'Save', SAVE_EVENT, ENV)
     sim_elements = [project, sidebar, undo_button, redo_button, save_button, home_button, menu_button, edit_button]
     sim_manager = ElementManager(sim_elements, version_handler)
+
+    pygame.env = ENV
 
     while running:
 
@@ -272,6 +283,9 @@ def main():
             else:
                 display.state = 0
 
+        # Check if the project was saved
+        saved = "" if project.saved[0] else "*"
+
         # Check for new events 
         for event in pygame.event.get():
 
@@ -289,13 +303,23 @@ def main():
                 if event.type == OPEN_PROJECT_EVENT:
                     selected_file = open_dev()
                     if selected_file is not None:
-                        print(selected_file.readlines())
+                        project.saved = (True, selected_file)
+                        selected_file = open(selected_file.name, 'rb')
+                        project.load_save_state(selected_file.read())
+                    fps = PROTOSIM_FPS
+                    current_state = PROTOSIM
+                    action_bar_title = action_text_handler.render_shadow(saved + project.display_name)
+                    edit_button.pos = (WIDTH / 2 + action_bar_title[0].get_width() / 2 + 10 + 5, edit_button.pos[1])
 
                 if event.type == EXIT_EVENT:
                     pygame.quit()
                     sys.exit()
 
             if current_state == PROTOSIM:
+
+                if event.type == PROJECT_CHANGE_EVENT:
+                    action_bar_title = action_text_handler.render_shadow(saved + project.display_name)
+                    edit_button.pos = (WIDTH / 2 + action_bar_title[0].get_width() / 2 + 10 + 5, edit_button.pos[1])
 
                 if event.type == pygame.MOUSEWHEEL:
                     if event.y:
@@ -312,11 +336,38 @@ def main():
                     else:
                         sidebar_width = SIDEBAR_WIDTH
 
+                if event.type == UNDO_EVENT:
+                    if len(ENV.undo_states):
+                        ENV.redo_states.append(project.make_save_state())
+                        project.load_save_state(ENV.undo_states[-1])
+                        ENV.undo_states.pop()
+                        continue
+
+                if event.type == REDO_EVENT:
+                    if len(ENV.redo_states):
+                        ENV.undo_states.append(project.make_save_state())
+                        project.load_save_state(ENV.redo_states[-1])
+                        ENV.redo_states.pop()
+                        continue
+
+                if event.type == SAVE_EVENT:
+                    if project.saved[1] is not None:
+                        file = project.saved[1]
+                    else:
+                        file = save_dev()
+                        if file is None:
+                            continue
+                    file = open(file.name, 'wb')
+                    pickle.dump(project.save(file), file)
+                    action_bar_title = action_text_handler.render_shadow(saved + project.display_name)
+                    edit_button.pos = (WIDTH / 2 + action_bar_title[0].get_width() / 2 + 10 + 5, edit_button.pos[1])
+
                 if event.type == pygame.MOUSEBUTTONDOWN:
                     if pygame.mouse.get_pressed()[0]:
                         if project.in_hand is None:
                             if project.point_hovered is not None:
                                 if project.incomplete_wire is None:
+                                    project.change_made()
                                     project.incomplete_wire = project.point_hovered
                                     ENV.selected = None
                                 else:
@@ -329,6 +380,7 @@ def main():
                             if isinstance(project.in_hand, LED):
                                 if project.point_hovered is not None:
                                     if not project.in_hand.cathode_connecting:
+                                        project.change_made()
                                         project.in_hand.anode_point = project.point_hovered
                                         project.in_hand.cathode_connecting = True
                                         project.point_hovered.parent.plugins[project.point_hovered] = project.in_hand
@@ -338,6 +390,41 @@ def main():
                                         if project.in_hand in ENV.query_disable:
                                             ENV.query_disable.remove(project.in_hand)
                                         project.in_hand = None
+                            if isinstance(project.in_hand, IntegratedCircuit):
+                                if project.point_hovered is not None:
+                                    parent = project.point_hovered.parent
+                                    discriminator = project.point_hovered.discriminator
+                                    if parent.ic_allowed(project.in_hand, project.point_hovered):
+                                        project.change_made()
+                                        parent.plugins[project.point_hovered] = project.in_hand
+                                        req = parent.ic_requirements(discriminator, project.in_hand.dip_count)
+                                        project.in_hand.pins_to_nodes = req
+                                        if project.in_hand in ENV.query_disable:
+                                            ENV.query_disable.remove(project.in_hand)
+                                        project.in_hand = None
+                            if isinstance(project.in_hand, Breadboard) or isinstance(project.in_hand, PowerSupply):
+                                relative_mouse = project.relative_mouse()
+                                point = (math.floor(relative_mouse[0] / project.zoom), math.floor(relative_mouse[1] / project.zoom))
+                                occupying_points = []
+                                allowed = True
+                                for row in range(project.in_hand.size[0]):
+                                    for column in range(project.in_hand.size[1]):
+                                        occupying_point = tuple(map(sum, zip(point, (row, column))))
+                                        if occupying_point in project.boards:
+                                            allowed = False
+                                            break
+                                        occupying_points.append(occupying_point)
+                                if allowed:
+                                    project.change_made()
+                                    project.boards[point] = project.in_hand
+                                    occupier = Occupier(point)
+                                    for occupying_point in occupying_points:
+                                        if occupying_point == point:
+                                            continue
+                                        project.boards[occupying_point] = occupier
+                                    if project.in_hand in ENV.query_disable:
+                                        ENV.query_disable.remove(project.in_hand)
+                                    project.in_hand = None
 
                 if event.type == pygame.KEYDOWN:
 
@@ -346,40 +433,31 @@ def main():
                         if project.in_hand is not None:
                             if isinstance(project.in_hand, LED) and project.in_hand.cathode_connecting:
                                 del project.in_hand.anode_point.parent.plugins[project.in_hand.anode_point]
-                            if project.in_hand in ENV.query_disable:
-                                ENV.query_disable.remove(project.in_hand)
                             project.in_hand = None
                         if project.incomplete_wire is not None:
-                            if project.incomplete_wire in ENV.query_disable:
-                                ENV.query_disable.remove(project.incomplete_wire)
                             project.incomplete_wire = None
-
                         if ENV.selected is not None:
                             ENV.selected = None
-                            if ENV.selected in ENV.query_disable:
-                                ENV.query_disable.remove(ENV.selected)
+
+                        ENV.query_disable.clear()
 
                     if event.key == pygame.K_DELETE:
                         if ENV.selected is not None:
                             if isinstance(ENV.selected, Breadboard):
                                 coord = [i for i in project.boards if project.boards[i] == ENV.selected][0]
                                 project.delete(coord)
-                                ENV.selected = None
-                                ENV.query_disable.clear()
                             if isinstance(ENV.selected, PowerSupply):
                                 coord = [i for i in project.boards if project.boards[i] == ENV.selected][0]
                                 project.delete(coord)
-                                ENV.selected = None
-                                ENV.query_disable.clear()
                             if isinstance(ENV.selected, PluginPart):
+                                project.change_made()
                                 board, coord = ENV.selected.deletion_key
                                 del board.plugins[coord]
-                                ENV.selected = None
-                                ENV.query_disable.clear()
                             if isinstance(ENV.selected, Wire):
+                                project.change_made()
                                 project.wires.remove(ENV.selected)
-                                ENV.selected = None
-                                ENV.query_disable.clear()
+                            ENV.selected = None
+                            ENV.query_disable.clear()
 
         # Display the page corresponding to the program state
         if current_state == HOME:

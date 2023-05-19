@@ -101,8 +101,8 @@
             <size>5x3</size>
             <voltage>5</voltage>
             <inchTenth>58</inchTenth>
-            <posNodeCoord>344,182</posNodeCoord>
-            <negNodeCoord>286,182</negNodeCoord>
+            <posNodeCoord>344,172</posNodeCoord>
+            <negNodeCoord>286,172</negNodeCoord>
             <nodeRadius>16</nodeRadius>
         </powerConfig>
     </part>

@@ -1,9 +1,23 @@
 import math
+import pickle
+
 import pygame
 
 from operator import sub, mul
+from pathlib import Path
 from ui.colours import *
 from ui.text import TextHandler
+
+
+class SaveState:
+
+    def __init__(self, boards, wires, name):
+        self.boards = boards
+        self.wires = wires
+        self.name = name
+
+    def get_attrs(self):
+        return self.boards, self.wires, self.name
 
 
 class Project:
@@ -31,6 +45,7 @@ class Project:
         self.anode_warning = self.handler.render("Select anode (+)", colour=COL_BLACK)
         self.cathode_warning = self.handler.render("Select cathode (-)", colour=COL_BLACK)
         self.colour_text = wire_colour_handler.render("Select wire colour", colour=COL_BLACK)
+        self.saved = (True, None)
 
     def shift(self, x, y):
         self.offset_x += x
@@ -41,6 +56,56 @@ class Project:
 
     def drop(self):
         self.in_hand = None
+
+    def save(self, file):
+        self.change_made()
+        self.display_name = Path(file.name).name
+        self.saved = (True, file)
+        return SaveState(self.boards, self.wires, self.display_name)
+
+    def make_save_state(self):
+        return pickle.dumps(SaveState(self.boards, self.wires, self.display_name))
+
+    def load_save_state(self, save_data):
+        self.boards, self.wires, self.display_name = pickle.loads(save_data).get_attrs()
+        self.rejuvenate()
+
+    def change_made(self):
+        self.saved = (False, self.saved[1])
+        self.env.redo_states.clear()
+        self.env.undo_states.append(self.make_save_state())
+        pygame.event.post(pygame.event.Event(pygame.USEREVENT + 10))
+
+    def rejuvenate(self):
+        from logic.parts import PowerSupply, Breadboard
+        for wire in self.wires:
+            old_point_a_group = wire.point_a.discriminator.name
+            group_1 = None
+            if isinstance(wire.point_a.parent, PowerSupply):
+                if wire.point_a.discriminator.row:
+                    wire.point_a = wire.point_a.parent.points[0]
+                else:
+                    wire.point_a = wire.point_a.parent.points[1]
+            elif isinstance(wire.point_a.parent, Breadboard):
+                if old_point_a_group == "main":
+                    group_1 = wire.point_a.parent.main_board_rects
+                elif old_point_a_group == "power":
+                    group_1 = wire.point_a.parent.pr_rects
+                wire.point_a = group_1[wire.point_a.discriminator][2]
+
+            old_point_b_group = wire.point_b.discriminator.name
+            group_2 = None
+            if isinstance(wire.point_b.parent, PowerSupply):
+                if wire.point_b.discriminator.row:
+                    wire.point_b = wire.point_b.parent.points[0]
+                else:
+                    wire.point_b = wire.point_b.parent.points[1]
+            elif isinstance(wire.point_b.parent, Breadboard):
+                if old_point_b_group == "main":
+                    group_2 = wire.point_b.parent.main_board_rects
+                elif old_point_b_group == "power":
+                    group_2 = wire.point_b.parent.pr_rects
+                wire.point_b = group_2[wire.point_b.discriminator][2]
 
     def scale(self, x):
         if x > 0 and self.zoom + x > 400:
@@ -72,6 +137,8 @@ class Project:
         return self.origin[0] + x, self.origin[1] + y
 
     def delete(self, coordinate, remove_wires=True):
+        self.change_made()
+        self.env.undo_states.append(self.make_save_state())
         for coord in self.boards.copy():
             element = self.boards[coord]
             if isinstance(element, Occupier) and element.parent_coord == coordinate:
@@ -114,7 +181,6 @@ class Project:
                     mouse_change = tuple(map(sub, pygame.mouse.get_pos(), self.last_mouse_pos))
                     self.shift(mouse_change[0], mouse_change[1])
                     self.last_mouse_pos = pygame.mouse.get_pos()
-
                     return
 
                 if mouse_pressed[0] and keys_pressed[pygame.K_LCTRL] and selected_not_occupied:
@@ -137,44 +203,6 @@ class Project:
                     env.query_disable.remove(self)
 
                 self.last_mouse_pos = pygame.mouse.get_pos()
-
-                if self.in_hand is not None:
-
-                    if mouse_pressed[0]:
-                        from logic.parts import Breadboard, PowerSupply, IntegratedCircuit, LED
-                        if isinstance(self.in_hand, IntegratedCircuit):
-                            if self.point_hovered is not None:
-                                parent = self.point_hovered.parent
-                                discriminator = self.point_hovered.discriminator
-                                if parent.ic_allowed(self.in_hand, self.point_hovered):
-                                    parent.plugins[self.point_hovered] = self.in_hand
-                                    req = parent.ic_requirements(discriminator, self.in_hand.dip_count)
-                                    self.in_hand.pins_to_nodes = req
-                                    if self.in_hand in env.query_disable:
-                                        env.query_disable.remove(self.in_hand)
-                                    self.in_hand = None
-                        if isinstance(self.in_hand, Breadboard) or isinstance(self.in_hand, PowerSupply):
-                            relative_mouse = self.relative_mouse()
-                            point = (math.floor(relative_mouse[0]/self.zoom), math.floor(relative_mouse[1]/self.zoom))
-                            occupying_points = []
-                            allowed = True
-                            for row in range(self.in_hand.size[0]):
-                                for column in range(self.in_hand.size[1]):
-                                    occupying_point = tuple(map(sum, zip(point, (row, column))))
-                                    if occupying_point in self.boards:
-                                        allowed = False
-                                        break
-                                    occupying_points.append(occupying_point)
-                            if allowed:
-                                self.boards[point] = self.in_hand
-                                occupier = Occupier(point)
-                                for occupying_point in occupying_points:
-                                    if occupying_point == point:
-                                        continue
-                                    self.boards[occupying_point] = occupier
-                                if self.in_hand in env.query_disable:
-                                    env.query_disable.remove(self.in_hand)
-                                self.in_hand = None
 
     def gridlines(self, win, axis):
         current_line = 0
@@ -281,7 +309,7 @@ class Project:
                 scale, coord, _ = self.draw_scaled_big(self.win, self.in_hand, point, colour=colour)
                 temp_positions[self.in_hand] = (scale, coord)
 
-        cache_rects = []
+        colour_selection = []
         colours = [COL_WIRE_RED, COL_WIRE_BLACK, COL_WIRE_YELLOW, COL_WIRE_WHITE, COL_WIRE_GREEN, COL_WIRE_BLUE]
 
         for wire in self.wires:
@@ -311,22 +339,19 @@ class Project:
                 if wire in self.env.query_disable:
                     self.env.query_disable.remove(wire)
             if self.env.selected == wire:
+                colour_selection.clear()
                 colour_rect = pygame.Rect(wire_rect.bottomright, (310, 80))
-                cache_rects.append(colour_rect)
+                colour_selection.append(colour_rect)
                 real_colour_rect = colour_rect.copy()
                 real_colour_rect.topleft = tuple(map(sum, zip(colour_rect.topleft, self.pos)))
                 pygame.draw.line(self.win, COL_SELECTED, a_real_center, b_real_center, width=4)
-                self.win.blit(self.colour_text, (colour_rect.x + 10, colour_rect.y + 5))
                 accumulated = 10
                 for colour in colours:
                     top_left = (colour_rect.x + accumulated, colour_rect.y + self.colour_text.get_height() + 10)
                     specific_colour = pygame.Rect(top_left, (40, 40))
-                    cache_rects.append(specific_colour)
+                    colour_selection.append(specific_colour)
                     real = specific_colour.copy()
                     real.topleft = tuple(map(sum, zip(specific_colour.topleft, self.pos)))
-                    if wire.colour == colour:
-                        pygame.draw.line(self.win, COL_HOME_SHADOW, specific_colour.topleft, specific_colour.bottomright, width=4)
-                        pygame.draw.line(self.win, COL_HOME_SHADOW, specific_colour.topright, specific_colour.bottomleft, width=4)
                     if real.collidepoint(pygame.mouse.get_pos()):
                         if specific_colour not in self.env.query_disable:
                             self.env.query_disable.append(specific_colour)
@@ -336,13 +361,20 @@ class Project:
                         if specific_colour in self.env.query_disable:
                             self.env.query_disable.remove(specific_colour)
                     accumulated += 50
+                colour_selection.append(wire)
 
-        if len(cache_rects):
-            for index, rect in enumerate(cache_rects):
+        if len(colour_selection):
+            for index, rect in enumerate(colour_selection):
                 if index == 0:
                     pygame.draw.rect(self.win, COL_HOME_SHADOW, rect)
+                    self.win.blit(self.colour_text, (rect.x + 10, rect.y + 5))
+                    continue
+                if index == len(colour_selection) - 1:
                     continue
                 pygame.draw.rect(self.win, colours[index-1], rect)
+                if colour_selection[-1].colour == colours[index-1]:
+                    pygame.draw.line(self.win, COL_HOME_SHADOW, rect.topleft, rect.bottomright, width=4)
+                    pygame.draw.line(self.win, COL_HOME_SHADOW, rect.topright, rect.bottomleft, width=4)
 
         return self.win
 

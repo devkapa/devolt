@@ -82,6 +82,7 @@ class Button:
                 self.hovering = False
         
     def draw(self, win, text_handler):
+        self.rect.x = self.pos[0]
         colour = COL_HOME_TITLE if self.hovering else COL_HOME_SHADOW
         pygame.draw.rect(win, colour, self.rect.move(2, 2), border_radius=16)
         pygame.draw.rect(win, COL_HOME_SHADOW if self.hovering else COL_HOME_TITLE, self.rect, border_radius=16)
