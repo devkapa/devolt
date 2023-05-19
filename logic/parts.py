@@ -419,6 +419,7 @@ class IntegratedCircuit(PluginPart):
     def draw(self, inch_tenth, radius, gap):
         win = pygame.Surface(((self.dip_count/2)*inch_tenth, gap+inch_tenth))
         handler = TextHandler(self.env, 'Play-Regular.ttf', radius*4)
+        pin_handler = TextHandler(self.env, 'Play-Regular.ttf', radius*2)
         label = handler.render(self.name)
         win.set_colorkey((0, 0, 0))
         rect = pygame.Rect(0, radius, win.get_width(), win.get_height()-(2*radius))

@@ -28,9 +28,9 @@ class Project:
         self.handler = TextHandler(env, 'Play-Regular.ttf', 25)
         wire_colour_handler = TextHandler(env, 'Play-Regular.ttf', 18)
         self.drag_warning = self.handler.render("Drag above a breadboard hole", colour=COL_HOME_BKG)
-        self.anode_warning = self.handler.render("Select anode", colour=COL_BLACK)
-        self.cathode_warning = self.handler.render("Select cathode", colour=COL_BLACK)
-        self.colour_text = wire_colour_handler.render("Wire Colour", colour=COL_BLACK)
+        self.anode_warning = self.handler.render("Select anode (+)", colour=COL_BLACK)
+        self.cathode_warning = self.handler.render("Select cathode (-)", colour=COL_BLACK)
+        self.colour_text = wire_colour_handler.render("Select wire colour", colour=COL_BLACK)
 
     def shift(self, x, y):
         self.offset_x += x
@@ -94,13 +94,15 @@ class Project:
         if self.last_surface is not None:
             if self.last_surface.get_rect(topleft=self.pos).collidepoint(pygame.mouse.get_pos()) or self.panning:
 
-                keys_pressed = pygame.key.get_pressed()
                 mouse_pressed = pygame.mouse.get_pressed()
+                keys_pressed = pygame.key.get_pressed()
 
                 if self.last_mouse_pos is None:
                     self.last_mouse_pos = pygame.mouse.get_pos()
 
-                if mouse_pressed[1] or (keys_pressed[pygame.K_LCTRL] and mouse_pressed[0]):
+                not_occupied = self.in_hand is None and self.point_hovered is None and self.incomplete_wire is None and self.env.selected is None
+
+                if mouse_pressed[0] and not_occupied and not keys_pressed[pygame.K_LCTRL]:
                     self.panning = True
                     if self not in env.query_disable:
                         env.query_disable.append(self)
@@ -109,6 +111,9 @@ class Project:
                     self.shift(mouse_change[0], mouse_change[1])
                     self.last_mouse_pos = pygame.mouse.get_pos()
                     return
+
+                if keys_pressed[pygame.K_LCTRL]:
+                    pass
 
                 self.panning = False
 
@@ -222,7 +227,8 @@ class Project:
             collide_checker = wire_rect.copy()
             collide_checker.topleft = tuple(map(sum, zip(wire_rect.topleft, self.pos)))
             pygame.draw.line(self.win, wire.colour, a_real_center, b_real_center, width=2)
-            if collide_checker.collidepoint(pygame.mouse.get_pos()):
+            keys_pressed = pygame.key.get_pressed()
+            if collide_checker.collidepoint(pygame.mouse.get_pos()) and keys_pressed[pygame.K_LSHIFT]:
                 if not len(self.env.query_disable) or wire in self.env.query_disable:
                     if wire not in self.env.query_disable:
                         self.env.query_disable.append(wire)
