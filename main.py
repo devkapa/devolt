@@ -356,6 +356,8 @@ def main():
 
                         if ENV.selected is not None:
                             ENV.selected = None
+                            if ENV.selected in ENV.query_disable:
+                                ENV.query_disable.remove(ENV.selected)
 
                     if event.key == pygame.K_DELETE:
                         if ENV.selected is not None:

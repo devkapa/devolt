@@ -419,7 +419,7 @@ class IntegratedCircuit(PluginPart):
     def draw(self, inch_tenth, radius, gap):
         win = pygame.Surface(((self.dip_count/2)*inch_tenth, gap+inch_tenth))
         handler = TextHandler(self.env, 'Play-Regular.ttf', radius*4)
-        pin_handler = TextHandler(self.env, 'Play-Regular.ttf', radius*2)
+        pin_handler = TextHandler(self.env, 'Play-Regular.ttf', radius)
         label = handler.render(self.name)
         win.set_colorkey((0, 0, 0))
         rect = pygame.Rect(0, radius, win.get_width(), win.get_height()-(2*radius))
@@ -428,9 +428,13 @@ class IntegratedCircuit(PluginPart):
             if i < self.dip_count/2:
                 r = pygame.Rect((inch_tenth/2) - (radius/2) + (inch_tenth*i), win.get_height()-radius, radius, radius)
                 pygame.draw.rect(win, COL_IC_PIN, r)
+                r_label = pin_handler.render(self.spice_nodes[i])
+                win.blit(r_label, (r.centerx - (r_label.get_width()/2), r.y - r_label.get_height()))
             else:
                 r = pygame.Rect((win.get_width() - (inch_tenth / 2)) - (radius/2) - (inch_tenth * (i-(self.dip_count/2))), 0, radius, radius)
                 pygame.draw.rect(win, COL_IC_PIN, r)
+                r_label = pin_handler.render(self.spice_nodes[i])
+                win.blit(r_label, (r.centerx - (r_label.get_width()/2), r.bottom))
         win.blit(label, (win.get_width()/2 - label.get_width()/2, win.get_height()/2 - label.get_height()/2))
         return win
 

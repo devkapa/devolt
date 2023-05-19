@@ -71,16 +71,17 @@ class Project:
         y = point[1] * self.zoom
         return self.origin[0] + x, self.origin[1] + y
 
-    def delete(self, coordinate):
+    def delete(self, coordinate, remove_wires=True):
         for coord in self.boards.copy():
             element = self.boards[coord]
             if isinstance(element, Occupier) and element.parent_coord == coordinate:
                 del self.boards[coord]
         self.point_hovered = None
         self.incomplete_wire = None
-        for wire in self.wires.copy():
-            if wire.point_a.parent == self.boards[coordinate] or wire.point_b.parent == self.boards[coordinate]:
-                self.wires.remove(wire)
+        if remove_wires:
+            for wire in self.wires.copy():
+                if wire.point_a.parent == self.boards[coordinate] or wire.point_b.parent == self.boards[coordinate]:
+                    self.wires.remove(wire)
         del self.boards[coordinate]
 
     def listen(self):
@@ -101,8 +102,11 @@ class Project:
                     self.last_mouse_pos = pygame.mouse.get_pos()
 
                 not_occupied = self.in_hand is None and self.point_hovered is None and self.incomplete_wire is None and self.env.selected is None
+                selected_not_occupied = self.in_hand is None and self.point_hovered is None and self.incomplete_wire is None
+                case_1 = mouse_pressed[0] and keys_pressed[pygame.K_LCTRL] and not_occupied
+                case_2 = mouse_pressed[1] and not keys_pressed[pygame.K_LCTRL] and not_occupied
 
-                if mouse_pressed[0] and not_occupied and not keys_pressed[pygame.K_LCTRL]:
+                if case_1 or case_2:
                     self.panning = True
                     if self not in env.query_disable:
                         env.query_disable.append(self)
@@ -110,10 +114,22 @@ class Project:
                     mouse_change = tuple(map(sub, pygame.mouse.get_pos(), self.last_mouse_pos))
                     self.shift(mouse_change[0], mouse_change[1])
                     self.last_mouse_pos = pygame.mouse.get_pos()
+
                     return
 
-                if keys_pressed[pygame.K_LCTRL]:
-                    pass
+                if mouse_pressed[0] and keys_pressed[pygame.K_LCTRL] and selected_not_occupied:
+                    from logic.parts import Breadboard
+                    relative_mouse = self.relative_mouse()
+                    point = (math.floor(relative_mouse[0] / self.zoom), math.floor(relative_mouse[1] / self.zoom))
+                    if point in self.boards:
+                        if isinstance(self.boards[point], Breadboard):
+                            self.in_hand = self.boards[point]
+                            self.delete(point, remove_wires=False)
+                            return
+                        elif isinstance(self.boards[point], Occupier):
+                            self.in_hand = self.boards[self.boards[point].parent_coord]
+                            self.delete(self.boards[point].parent_coord, remove_wires=False)
+                            return
 
                 self.panning = False
 
@@ -212,61 +228,6 @@ class Project:
             mouse_relative = tuple(map(lambda i, j: i - j, mouse_pos, self.pos))
             pygame.draw.aaline(self.win, COL_RED, a_real_center, mouse_relative)
 
-        for wire in self.wires:
-            a_scale, a_coord = temp_positions[wire.point_a.parent]
-            b_scale, b_coord = temp_positions[wire.point_b.parent]
-            a_rect = wire.point_a.rect
-            b_rect = wire.point_b.rect
-            a_pos = self.convert_point(a_coord)
-            b_pos = self.convert_point(b_coord)
-            a_scaled_center = tuple(map(mul, a_scale, a_rect.center))
-            a_real_center = tuple(map(sum, zip(a_pos, a_scaled_center)))
-            b_scaled_center = tuple(map(mul, b_scale, b_rect.center))
-            b_real_center = tuple(map(sum, zip(b_pos, b_scaled_center)))
-            wire_rect = pygame.draw.line(self.win, COL_BLACK, a_real_center, b_real_center, width=4)
-            collide_checker = wire_rect.copy()
-            collide_checker.topleft = tuple(map(sum, zip(wire_rect.topleft, self.pos)))
-            pygame.draw.line(self.win, wire.colour, a_real_center, b_real_center, width=2)
-            keys_pressed = pygame.key.get_pressed()
-            if collide_checker.collidepoint(pygame.mouse.get_pos()) and keys_pressed[pygame.K_LSHIFT]:
-                if not len(self.env.query_disable) or wire in self.env.query_disable:
-                    if wire not in self.env.query_disable:
-                        self.env.query_disable.append(wire)
-                    pygame.draw.line(self.win, COL_SELECTED, a_real_center, b_real_center, width=4)
-                    if pygame.mouse.get_pressed()[0] and self.incomplete_wire is None:
-                        self.env.selected = wire
-            else:
-                if wire in self.env.query_disable:
-                    self.env.query_disable.remove(wire)
-            if self.env.selected == wire:
-                colour_rect = pygame.Rect(wire_rect.bottomright, (310, 80))
-                real_colour_rect = colour_rect.copy()
-                real_colour_rect.topleft = tuple(map(sum, zip(colour_rect.topleft, self.pos)))
-                colours = [COL_WIRE_RED, COL_WIRE_BLACK,COL_WIRE_YELLOW, COL_WIRE_WHITE, COL_WIRE_GREEN, COL_WIRE_BLUE]
-                pygame.draw.line(self.win, COL_SELECTED, a_real_center, b_real_center, width=4)
-                pygame.draw.rect(self.win, COL_HOME_SHADOW, colour_rect)
-                self.win.blit(self.colour_text, (colour_rect.x + 10, colour_rect.y + 5))
-                accumulated = 10
-                for colour in colours:
-                    top_left = (colour_rect.x + accumulated, colour_rect.y + self.colour_text.get_height() + 10)
-                    specific_colour = pygame.Rect(top_left, (40, 40))
-                    real = specific_colour.copy()
-                    real.topleft = tuple(map(sum, zip(specific_colour.topleft, self.pos)))
-                    pygame.draw.rect(self.win, colour, specific_colour)
-                    if wire.colour == colour:
-                        pygame.draw.line(self.win, COL_HOME_SHADOW, specific_colour.topleft, specific_colour.bottomright, width=4)
-                        pygame.draw.line(self.win, COL_HOME_SHADOW, specific_colour.topright, specific_colour.bottomleft, width=4)
-                    if real.collidepoint(pygame.mouse.get_pos()):
-                        if specific_colour not in self.env.query_disable:
-                            self.env.query_disable.append(specific_colour)
-                        if pygame.mouse.get_pressed()[0]:
-                            wire.colour = colour
-                    else:
-                        if specific_colour in self.env.query_disable:
-                            self.env.query_disable.remove(specific_colour)
-                    accumulated += 50
-            pygame.draw.line(self.win, wire.colour, a_real_center, b_real_center, width=1)
-
         if self.in_hand is not None:
             from logic.parts import PluginPart, IntegratedCircuit, LED
             if isinstance(self.in_hand, PluginPart):
@@ -317,7 +278,71 @@ class Project:
                     colour = (200, 0, 0, 128)
                 else:
                     colour = (255, 255, 255, 128)
-                self.draw_scaled_big(self.win, self.in_hand, point, colour=colour)
+                scale, coord, _ = self.draw_scaled_big(self.win, self.in_hand, point, colour=colour)
+                temp_positions[self.in_hand] = (scale, coord)
+
+        cache_rects = []
+        colours = [COL_WIRE_RED, COL_WIRE_BLACK, COL_WIRE_YELLOW, COL_WIRE_WHITE, COL_WIRE_GREEN, COL_WIRE_BLUE]
+
+        for wire in self.wires:
+            a_scale, a_coord = temp_positions[wire.point_a.parent]
+            b_scale, b_coord = temp_positions[wire.point_b.parent]
+            a_rect = wire.point_a.rect
+            b_rect = wire.point_b.rect
+            a_pos = self.convert_point(a_coord)
+            b_pos = self.convert_point(b_coord)
+            a_scaled_center = tuple(map(mul, a_scale, a_rect.center))
+            a_real_center = tuple(map(sum, zip(a_pos, a_scaled_center)))
+            b_scaled_center = tuple(map(mul, b_scale, b_rect.center))
+            b_real_center = tuple(map(sum, zip(b_pos, b_scaled_center)))
+            wire_rect = pygame.draw.line(self.win, COL_BLACK, a_real_center, b_real_center, width=4)
+            collide_checker = wire_rect.copy()
+            collide_checker.topleft = tuple(map(sum, zip(wire_rect.topleft, self.pos)))
+            pygame.draw.line(self.win, wire.colour, a_real_center, b_real_center, width=2)
+            keys_pressed = pygame.key.get_pressed()
+            if collide_checker.collidepoint(pygame.mouse.get_pos()) and keys_pressed[pygame.K_LSHIFT]:
+                if not len(self.env.query_disable) or wire in self.env.query_disable:
+                    if wire not in self.env.query_disable:
+                        self.env.query_disable.append(wire)
+                    pygame.draw.line(self.win, COL_SELECTED, a_real_center, b_real_center, width=4)
+                    if pygame.mouse.get_pressed()[0] and self.incomplete_wire is None:
+                        self.env.selected = wire
+            else:
+                if wire in self.env.query_disable:
+                    self.env.query_disable.remove(wire)
+            if self.env.selected == wire:
+                colour_rect = pygame.Rect(wire_rect.bottomright, (310, 80))
+                cache_rects.append(colour_rect)
+                real_colour_rect = colour_rect.copy()
+                real_colour_rect.topleft = tuple(map(sum, zip(colour_rect.topleft, self.pos)))
+                pygame.draw.line(self.win, COL_SELECTED, a_real_center, b_real_center, width=4)
+                self.win.blit(self.colour_text, (colour_rect.x + 10, colour_rect.y + 5))
+                accumulated = 10
+                for colour in colours:
+                    top_left = (colour_rect.x + accumulated, colour_rect.y + self.colour_text.get_height() + 10)
+                    specific_colour = pygame.Rect(top_left, (40, 40))
+                    cache_rects.append(specific_colour)
+                    real = specific_colour.copy()
+                    real.topleft = tuple(map(sum, zip(specific_colour.topleft, self.pos)))
+                    if wire.colour == colour:
+                        pygame.draw.line(self.win, COL_HOME_SHADOW, specific_colour.topleft, specific_colour.bottomright, width=4)
+                        pygame.draw.line(self.win, COL_HOME_SHADOW, specific_colour.topright, specific_colour.bottomleft, width=4)
+                    if real.collidepoint(pygame.mouse.get_pos()):
+                        if specific_colour not in self.env.query_disable:
+                            self.env.query_disable.append(specific_colour)
+                        if pygame.mouse.get_pressed()[0]:
+                            wire.colour = colour
+                    else:
+                        if specific_colour in self.env.query_disable:
+                            self.env.query_disable.remove(specific_colour)
+                    accumulated += 50
+
+        if len(cache_rects):
+            for index, rect in enumerate(cache_rects):
+                if index == 0:
+                    pygame.draw.rect(self.win, COL_HOME_SHADOW, rect)
+                    continue
+                pygame.draw.rect(self.win, colours[index-1], rect)
 
         return self.win
 
