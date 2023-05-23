@@ -184,6 +184,7 @@
                 X3 vcc gnd 3A 3B 3Y NAND
                 X4 vcc gnd 4A 4B 4Y NAND
             </rawSpice>
+            <datasheet>74HC00.png</datasheet>
         </icConfig>
     </part>
 

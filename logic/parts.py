@@ -96,9 +96,10 @@ def parse(xml_path):
                     dip_count = int(ic_config.find("dipCount").text)
                     raw_spice = textwrap.dedent(ic_config.find("rawSpice").text)
                     spice_nodes = tuple(ic_config.find("spiceNodes").text.split(" "))
+                    datasheet = ic_config.find("datasheet").text
 
-                    ic = (part_name, part_desc, part_texture, part_picture, dip_count, raw_spice, spice_nodes), \
-                        IntegratedCircuit
+                    ic = (part_name, part_desc, part_texture, part_picture, dip_count, raw_spice, spice_nodes,
+                          datasheet), IntegratedCircuit
                     ics[part_uid] = ic
 
                 if part_type == "led":
@@ -271,7 +272,7 @@ class Breadboard(Part):
 
     def create_rects(self, board_config, name):
         if board_config is None:
-            return {}
+            return {}, ""
         rects = {}
         rails = []
 
@@ -357,9 +358,6 @@ class Breadboard(Part):
                 plugin_pos = (plugin_rect.left, plugin_rect.centery)
             else:
                 plugin_pos = (plugin_rect.centerx - plugin_size[0]/2, plugin_rect.centery - plugin_size[1]/2)
-            if isinstance(plugin_obj, LED) and not plugin_obj.cathode_connecting:
-                width = math.floor(4/scale[0])
-                pygame.draw.line(surface, COL_IC_PIN, plugin_rect.center, plugin_obj.cathode_point.rect.center, width=width)
             surface.blit(plugin_surf, plugin_pos)
             if not len(self.env.query_disable) or plugin_rect in self.env.query_disable:
                 scaled_topleft = tuple(map(lambda i, j, k: (i*j)+k, plugin_pos, scale, real_pos))
@@ -459,16 +457,19 @@ class LED(PluginPart):
 
 class IntegratedCircuit(PluginPart):
 
-    def __init__(self, name, desc, texture, preview_texture, dip_count, raw_spice, spice_nodes, env, pin_map=None):
+    def __init__(self, name, desc, texture, preview_texture, dip_count, raw_spice, spice_nodes, datasheet_img, env, pin_map=None):
         super().__init__(name, desc, texture, preview_texture, env)
+        path = env.get_main_path()
         self.dip_count = dip_count
         self.raw_spice = raw_spice
         self.spice_nodes = spice_nodes
+        self.datasheet_file = datasheet_img
+        self.datasheet_image = pygame.image.load(os.path.join(path, 'assets', 'textures', 'datasheets', datasheet_img))
         self.pins_to_nodes = {} if pin_map is None else pin_map
 
     def __getstate__(self):
         """Return state values to be pickled."""
-        return self.name, self.desc, self.texture_name, self.preview_texture_name, self.dip_count, self.raw_spice, self.spice_nodes, self.pins_to_nodes
+        return self.name, self.desc, self.texture_name, self.preview_texture_name, self.dip_count, self.raw_spice, self.spice_nodes, self.datasheet_file, self.pins_to_nodes
 
     def __setstate__(self, state):
         """Restore state from the unpickled state values."""

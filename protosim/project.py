@@ -2,7 +2,7 @@ import math
 import pickle
 
 import pygame
-
+from numpy import arctan, cos, sin
 from operator import sub, mul
 from pathlib import Path
 from ui.colours import *
@@ -46,6 +46,7 @@ class Project:
         self.cathode_warning = self.handler.render("Select cathode (-)", colour=COL_BLACK)
         self.colour_text = wire_colour_handler.render("Select wire colour", colour=COL_BLACK)
         self.saved = (True, None)
+        self.tester = self.win.copy()
 
     def shift(self, x, y):
         self.offset_x += x
@@ -69,6 +70,21 @@ class Project:
     def load_save_state(self, save_data):
         self.boards, self.wires, self.display_name = pickle.loads(save_data).get_attrs()
         self.rejuvenate()
+
+    def reset(self):
+        self.boards = {}
+        self.wires = []
+        self.offset_x, self.offset_y = 0, 0
+        self.zoom = 50
+        self.panning = False
+        self.last_surface = None
+        self.last_mouse_pos = None
+        self.pos = (0, 0)
+        self.display_name = "Untitled.dev"
+        self.in_hand = None
+        self.point_hovered = None
+        self.incomplete_wire = None
+        self.saved = (True, None)
 
     def change_made(self):
         self.saved = (False, self.saved[1])
@@ -125,6 +141,7 @@ class Project:
         self.width = width if width is not None else self.width
         self.height = height if height is not None else self.height
         self.win = pygame.Surface((self.width, self.height))
+        self.tester = self.win.copy()
 
     def relative_mouse(self):
         mouse_pos = pygame.mouse.get_pos()
@@ -222,7 +239,7 @@ class Project:
         surf = pygame.transform.scale(element_surf, size)
         surf.fill(colour, None, pygame.BLEND_RGBA_MULT)
         win.blit(surf, self.convert_point(coord))
-        return scale, coord, rect_hovered
+        return scale, coord, rect_hovered, self.convert_point(coord)
 
     def surface(self):
         self.win.fill(COL_SIM_BKG)
@@ -239,15 +256,37 @@ class Project:
             element = self.boards[coord]
             if isinstance(element, Occupier):
                 continue
-            scale, coord, rect_hovered = self.draw_scaled_big(self.win, element, coord)
-            temp_positions[element] = (scale, coord)
+            scale, coord, rect_hovered, real_element_pos = self.draw_scaled_big(self.win, element, coord)
+            temp_positions[element] = (scale, coord, real_element_pos)
             if rect_hovered is not None:
                 temp_hovered = rect_hovered
+
+        for coord in self.boards:
+            element = self.boards[coord]
+            from logic.parts import Breadboard, LED
+            if not isinstance(element, Breadboard):
+                continue
+            for plugin in element.plugins:
+                plugin_obj = element.plugins[plugin]
+                if isinstance(plugin_obj, LED) and not plugin_obj.cathode_connecting:
+                    parent_scale = temp_positions[element][0]
+                    parent_real = temp_positions[element][2]
+                    anode_point = plugin_obj.anode_point.rect.center
+                    anode_point = tuple(map(lambda i, j, k: (i * j) + k, anode_point, parent_scale, parent_real))
+                    parent_scale = temp_positions[plugin_obj.cathode_point.parent][0]
+                    parent_real = temp_positions[plugin_obj.cathode_point.parent][2]
+                    cathode_point = plugin_obj.cathode_point.rect.center
+                    cathode_point = tuple(map(lambda i, j, k: (i * j) + k, cathode_point, parent_scale, parent_real))
+                    wire_rect = pygame.draw.line(self.tester, COL_IC_PIN, anode_point, cathode_point, width=4)
+                    angle = arctan(wire_rect.h/wire_rect.w)
+                    r = parent_scale[0]*element.inch_tenth
+                    new_point = tuple(map(sum, zip(anode_point, (r*cos(angle), r*sin(angle)))))
+                    pygame.draw.line(self.win, COL_IC_PIN, new_point, cathode_point, width=4)
 
         self.point_hovered = temp_hovered
 
         if self.incomplete_wire is not None:
-            a_scale, a_coord = temp_positions[self.incomplete_wire.parent]
+            a_scale, a_coord, _ = temp_positions[self.incomplete_wire.parent]
             a_rect = self.incomplete_wire.rect
             a_pos = self.convert_point(a_coord)
             a_scaled_center = tuple(map(mul, a_scale, a_rect.center))
@@ -275,9 +314,10 @@ class Project:
                         surf.fill(colour, None, pygame.BLEND_RGBA_MULT)
                     if isinstance(self.in_hand, LED):
                         if self.in_hand.cathode_connecting:
-                            real_pos = self.convert_point(temp_positions[self.point_hovered.parent][1])
                             scale = temp_positions[self.point_hovered.parent][0]
-                            point = self.point_hovered.parent.point_to_coord(real_pos, self.in_hand.anode_point, scale)
+                            parent_real = temp_positions[self.in_hand.anode_point.parent][2]
+                            point = self.in_hand.anode_point.rect.center
+                            point = tuple(map(lambda i, j, k: (i*j)+k, point, scale, parent_real))
                             pygame.draw.line(self.win, COL_IC_PIN, point, mouse_relative, width=4)
                             rect_size = self.cathode_warning.get_size()
                             pygame.draw.rect(self.win, COL_WHITE, pygame.Rect(mouse_relative, rect_size))
@@ -291,6 +331,8 @@ class Project:
                     else:
                         self.win.blit(surf, mouse_relative)
                 else:
+                    rect_size = self.drag_warning.get_size()
+                    pygame.draw.rect(self.win, COL_WHITE, pygame.Rect(mouse_relative, rect_size))
                     self.win.blit(self.drag_warning, mouse_relative)
             else:
                 relative_mouse = self.relative_mouse()
@@ -306,15 +348,15 @@ class Project:
                     colour = (200, 0, 0, 128)
                 else:
                     colour = (255, 255, 255, 128)
-                scale, coord, _ = self.draw_scaled_big(self.win, self.in_hand, point, colour=colour)
+                scale, coord, _, _ = self.draw_scaled_big(self.win, self.in_hand, point, colour=colour)
                 temp_positions[self.in_hand] = (scale, coord)
 
         colour_selection = []
         colours = [COL_WIRE_RED, COL_WIRE_BLACK, COL_WIRE_YELLOW, COL_WIRE_WHITE, COL_WIRE_GREEN, COL_WIRE_BLUE]
 
         for wire in self.wires:
-            a_scale, a_coord = temp_positions[wire.point_a.parent]
-            b_scale, b_coord = temp_positions[wire.point_b.parent]
+            a_scale, a_coord, _ = temp_positions[wire.point_a.parent]
+            b_scale, b_coord, _ = temp_positions[wire.point_b.parent]
             a_rect = wire.point_a.rect
             b_rect = wire.point_b.rect
             a_pos = self.convert_point(a_coord)

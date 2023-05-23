@@ -7,6 +7,8 @@ import os
 import uuid
 
 from tkinter import filedialog as fd
+from tkinter import simpledialog as sd
+from tkinter import messagebox as mb
 from pygame.locals import SCALED
 from PySpice.Unit import *
 from PySpice.Spice.Netlist import Circuit
@@ -60,6 +62,7 @@ HOME_EVENT = pygame.USEREVENT + 7
 MENU_EVENT = pygame.USEREVENT + 8
 EDIT_EVENT = pygame.USEREVENT + 9
 PROJECT_CHANGE_EVENT = pygame.USEREVENT + 10
+DATASHEET_EVENT = pygame.USEREVENT + 11
 
 
 def draw_homepage(win, homepage_title, homepage_version, visualiser, buttons):
@@ -81,7 +84,7 @@ def draw_circuit_graphic(win, visualiser):
     visualiser.draw(win)
 
 
-def draw_sim(win, sidebar_width, project, buttons, title, sidebar):
+def draw_sim(win, sidebar_width, project, buttons, title, sidebar, show_datasheet):
     win.fill(COL_HOME_BKG)
     if project.width != WIDTH-sidebar_width:
         project.set_size(width=WIDTH-sidebar_width)
@@ -92,6 +95,8 @@ def draw_sim(win, sidebar_width, project, buttons, title, sidebar):
     project.pos = (sidebar_width, ACTION_BAR_HEIGHT)
     win.blit(project.surface(), project.pos)
     buttons.draw(win)
+    if show_datasheet[0]:
+        win.blit(show_datasheet[1], project.pos)
     if sidebar_width > 0:
         win.blit(sidebar.surface(), (0, ACTION_BAR_HEIGHT))
         sidebar.listen()
@@ -102,10 +107,10 @@ def open_dev():
     return fd.askopenfile(title="Open de:volt Project", initialdir=ENV.get_main_path(), filetypes=filetypes)
 
 
-def save_dev():
+def save_dev(project):
     filetypes = (("de:volt Project", "*.dev"),)
     file = fd.asksaveasfile(title="Save de:volt Project", initialdir=ENV.get_main_path(), filetypes=filetypes,
-                            defaultextension=".dev", initialfile="Untitled")
+                            defaultextension=".dev", initialfile=project.display_name)
     return file
 
 
@@ -210,6 +215,7 @@ def main():
     sim_manager = ElementManager(sim_elements, version_handler)
 
     pygame.env = ENV
+    show_datasheet = (False, None)
 
     while running:
 
@@ -350,11 +356,38 @@ def main():
                         ENV.redo_states.pop()
                         continue
 
+                if event.type == EDIT_EVENT:
+                    new_name = sd.askstring("Edit Project Name", "Enter your new project name below.",
+                                            initialvalue=project.display_name)
+                    if new_name is not None and new_name != "":
+                        if not new_name.endswith(".dev"):
+                            new_name += ".dev"
+                        project.display_name = new_name
+                        action_bar_title = action_text_handler.render_shadow(saved + project.display_name)
+                        edit_button.pos = (WIDTH / 2 + action_bar_title[0].get_width() / 2 + 10 + 5, edit_button.pos[1])
+                    else:
+                        mb.showerror("Error", "You did not provide a name.")
+
+                if event.type == HOME_EVENT:
+                    if not project.saved[0]:
+                        save = mb.askquestion("Unsaved Warning", "You have unsaved work! "
+                                                                 "Do you want to save your project?", icon='warning')
+                        if save == 'yes':
+                            pygame.event.post(pygame.event.Event(SAVE_EVENT))
+                        else:
+                            project.reset()
+                            current_state = HOME
+                            continue
+                    else:
+                        project.reset()
+                        current_state = HOME
+                        continue
+
                 if event.type == SAVE_EVENT:
                     if project.saved[1] is not None:
                         file = project.saved[1]
                     else:
-                        file = save_dev()
+                        file = save_dev(project)
                         if file is None:
                             continue
                     file = open(file.name, 'wb')
@@ -367,15 +400,16 @@ def main():
                         if project.in_hand is None:
                             if project.point_hovered is not None:
                                 if project.incomplete_wire is None:
-                                    project.change_made()
                                     project.incomplete_wire = project.point_hovered
                                     ENV.selected = None
                                 else:
-                                    project.wires.append(Wire(project.incomplete_wire, project.point_hovered))
-                                    if project.incomplete_wire in ENV.query_disable:
-                                        ENV.query_disable.remove(project.incomplete_wire)
-                                    project.incomplete_wire = None
-                                    project.point_hovered = None
+                                    if project.point_hovered != project.incomplete_wire:
+                                        project.change_made()
+                                        project.wires.append(Wire(project.incomplete_wire, project.point_hovered))
+                                        if project.incomplete_wire in ENV.query_disable:
+                                            ENV.query_disable.remove(project.incomplete_wire)
+                                        project.incomplete_wire = None
+                                        project.point_hovered = None
                         else:
                             if isinstance(project.in_hand, LED):
                                 if project.point_hovered is not None:
@@ -441,6 +475,16 @@ def main():
 
                         ENV.query_disable.clear()
 
+                    if event.key == pygame.K_d:
+
+                        if not show_datasheet[0]:
+                            if ENV.selected is not None:
+                                if isinstance(ENV.selected, IntegratedCircuit):
+                                    scaled_image = pygame.transform.scale(ENV.selected.datasheet_image, (200, 200))
+                                    show_datasheet = (True, scaled_image)
+                        else:
+                            show_datasheet = (False, None)
+
                     if event.key == pygame.K_DELETE:
                         if ENV.selected is not None:
                             if isinstance(ENV.selected, Breadboard):
@@ -471,8 +515,16 @@ def main():
 
         if current_state == PROTOSIM:
 
-            pygame.display.set_caption(f"{project.display_name} • de:volt")
-            draw_sim(win, sidebar_width, project, sim_manager, action_bar_title, sidebar)
+            pygame.display.set_caption(f"{saved}{project.display_name} • de:volt")
+            draw_sim(win, sidebar_width, project, sim_manager, action_bar_title, sidebar, show_datasheet)
+
+            keys_pressed = pygame.key.get_pressed()
+
+            if keys_pressed[pygame.K_LCTRL]:
+                if keys_pressed[pygame.K_z]:
+                    pygame.event.post(pygame.event.Event(UNDO_EVENT))
+                if keys_pressed[pygame.K_y]:
+                    pygame.event.post(pygame.event.Event(REDO_EVENT))
 
             if not sim_manager.hovered:
                 if pygame.mouse.get_cursor() != pygame.SYSTEM_CURSOR_ARROW:
