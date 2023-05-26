@@ -231,11 +231,14 @@ class Project:
             pygame.draw.line(win, COL_SIM_GRIDLINES, start_coord, end_coord)
             current_line += self.zoom
 
-    def draw_scaled_big(self, win, element, coord, colour=(255, 255, 255, 255)):
+    def draw_scaled_big(self, win, element, coord, colour=(255, 255, 255, 255), led_only=False):
         real_element_pos = tuple(map(sum, zip(self.pos, self.convert_point(coord))))
         size = (element.size[0] * self.zoom, element.size[1] * self.zoom)
         scale = (size[0] / element.texture.get_width(), size[1] / element.texture.get_height())
-        element_surf, rect_hovered = element.surface(real_element_pos, scale)
+        if led_only:
+            element_surf, rect_hovered = element.surface_led(), None
+        else:
+            element_surf, rect_hovered = element.surface(real_element_pos, scale)
         surf = pygame.transform.scale(element_surf, size)
         surf.fill(colour, None, pygame.BLEND_RGBA_MULT)
         win.blit(surf, self.convert_point(coord))
@@ -277,13 +280,12 @@ class Project:
                     parent_real = temp_positions[plugin_obj.cathode_point.parent][2]
                     cathode_point = plugin_obj.cathode_point.rect.center
                     cathode_point = tuple(map(lambda i, j, k: (i * j) + k, cathode_point, parent_scale, parent_real))
-                    wire_rect = pygame.draw.line(self.tester, COL_IC_PIN, anode_point, cathode_point, width=4)
-                    angle = arctan(wire_rect.h/wire_rect.w)
-                    r = parent_scale[0]*element.inch_tenth
-                    new_point = tuple(map(sum, zip(anode_point, (r*cos(angle), r*sin(angle)))))
-                    pygame.draw.line(self.win, COL_IC_PIN, new_point, cathode_point, width=4)
+                    pygame.draw.line(self.win, COL_IC_PIN, anode_point, cathode_point, width=4)
+            self.draw_scaled_big(self.win, element, coord, led_only=True)
 
-        self.point_hovered = temp_hovered
+        if self.last_surface is not None:
+            if self.last_surface.get_rect(topleft=self.pos).collidepoint(pygame.mouse.get_pos()):
+                self.point_hovered = temp_hovered
 
         if self.incomplete_wire is not None:
             a_scale, a_coord, _ = temp_positions[self.incomplete_wire.parent]
@@ -348,8 +350,8 @@ class Project:
                     colour = (200, 0, 0, 128)
                 else:
                     colour = (255, 255, 255, 128)
-                scale, coord, _, _ = self.draw_scaled_big(self.win, self.in_hand, point, colour=colour)
-                temp_positions[self.in_hand] = (scale, coord)
+                scale, coord, _, real = self.draw_scaled_big(self.win, self.in_hand, point, colour=colour)
+                temp_positions[self.in_hand] = (scale, coord, real)
 
         colour_selection = []
         colours = [COL_WIRE_RED, COL_WIRE_BLACK, COL_WIRE_YELLOW, COL_WIRE_WHITE, COL_WIRE_GREEN, COL_WIRE_BLUE]

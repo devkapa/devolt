@@ -188,4 +188,139 @@
         </icConfig>
     </part>
 
+    <part type="ic" uid="ic-74hc02">
+        <name>74HC02</name>
+        <desc>This chip has quad 2-input NOR gates.</desc>
+        <picture>ic.png</picture>
+        <texture>ic.png</texture>
+        <icConfig>
+            <dipCount>14</dipCount>
+            <spiceNodes>1Y 1A 1B 2Y 2A 2B gnd 3A 3B 3Y 4A 4B 4Y vcc</spiceNodes>
+            <rawSpice>
+                .model t-nmos NMOS (level=1)
+                .model t-pmos PMOS (level=1)
+                .subckt NOR vcc gnd A B Y
+                M1 temp A vcc vcc t-pmos
+                M2 Y B temp vcc t-pmos
+                M3 Y A gnd gnd t-nmos
+                M4 temp B gnd gnd t-nmos
+                .ends NOR
+                X1 vcc gnd 1A 1B 1Y NOR
+                X2 vcc gnd 2A 2B 2Y NOR
+                X3 vcc gnd 3A 3B 3Y NOR
+                X4 vcc gnd 4A 4B 4Y NOR
+            </rawSpice>
+            <datasheet>74HC02.png</datasheet>
+        </icConfig>
+    </part>
+
+    <part type="ic" uid="ic-74hc04">
+        <name>74HC04</name>
+        <desc>This chip has 6 hex inverters.</desc>
+        <picture>ic.png</picture>
+        <texture>ic.png</texture>
+        <icConfig>
+            <dipCount>14</dipCount>
+            <spiceNodes>1A 1Y 2A 2Y 3A 3Y gnd 4Y 4A 5Y 5A 6Y 6A vcc</spiceNodes>
+            <rawSpice>
+                .model t-nmos NMOS (level=1)
+                .model t-pmos PMOS (level=1)
+                .subckt INVERT vcc gnd A Y
+                M1 Y A vcc vcc t-pmos
+                M2 Y A gnd gnd t-nmos
+                .ends INVERT
+                X1 vcc gnd 1A 1Y INVERT
+                X2 vcc gnd 2A 2Y INVERT
+                X3 vcc gnd 3A 3Y INVERT
+                X4 vcc gnd 4A 4Y INVERT
+                X5 vcc gnd 5A 5Y INVERT
+                X6 vcc gnd 6A 6Y INVERT
+            </rawSpice>
+            <datasheet>74HC04.png</datasheet>
+        </icConfig>
+    </part>
+
+    <part type="ic" uid="ic-74hc08">
+        <name>74HC08</name>
+        <desc>This chip has quad 2-input AND gates.</desc>
+        <picture>ic.png</picture>
+        <texture>ic.png</texture>
+        <icConfig>
+            <dipCount>14</dipCount>
+            <spiceNodes>1A 1B 1Y 2A 2B 2Y gnd 3Y 3A 3B 4Y 4A 4B vcc</spiceNodes>
+            <rawSpice>
+                .model t-nmos NMOS (level=1)
+                .model t-pmos PMOS (level=1)
+                .subckt AND vcc gnd A B Y
+                M1 tempNAND A vcc vcc t-pmos
+                M2 tempNAND B vcc vcc t-pmos
+                M3 tempNAND A temp gnd t-nmos
+                M4 temp B gnd gnd t-nmos
+                M5 Y tempNAND gnd gnd t-nmos
+                M6 Y tempNAND vcc vcc t-pmos
+                .ends AND
+                X1 vcc gnd 1A 1B 1Y AND
+                X2 vcc gnd 2A 2B 2Y AND
+                X3 vcc gnd 3A 3B 3Y AND
+                X4 vcc gnd 4A 4B 4Y AND
+            </rawSpice>
+            <datasheet>74HC08.png</datasheet>
+        </icConfig>
+    </part>
+
+    <part type="ic" uid="ic-74hc32">
+        <name>74HC32</name>
+        <desc>This chip has quad 2-input OR gates.</desc>
+        <picture>ic.png</picture>
+        <texture>ic.png</texture>
+        <icConfig>
+            <dipCount>14</dipCount>
+            <spiceNodes>1A 1B 1Y 2A 2B 2Y gnd 3Y 3A 3B 4Y 4A 4B vcc</spiceNodes>
+            <rawSpice>
+                .model t-nmos NMOS (level=1)
+                .model t-pmos PMOS (level=1)
+                .subckt OR vcc gnd A B Y
+                M1 temp A vcc vcc t-pmos
+                M2 tempNOR B temp vcc t-pmos
+                M3 tempNOR A gnd gnd t-nmos
+                M4 tempNOR B gnd gnd t-nmos
+                M5 Y tempNOR gnd gnd t-nmos
+                M6 Y tempNOR vcc vcc t-pmos
+                .ends OR
+                X1 vcc gnd 1A 1B 1Y OR
+                X2 vcc gnd 2A 2B 2Y OR
+                X3 vcc gnd 3A 3B 3Y OR
+                X4 vcc gnd 4A 4B 4Y OR
+            </rawSpice>
+            <datasheet>74HC08.png</datasheet>
+        </icConfig>
+    </part>
+
+    <part type="ic" uid="ic-74hc80">
+        <name>74HC80</name>
+        <desc>This chip has a 4 bit full adder with carry.</desc>
+        <picture>ic.png</picture>
+        <texture>ic.png</texture>
+        <icConfig>
+            <dipCount>16</dipCount>
+            <spiceNodes>S2 B2 A2 S1 A1 B1 CI gnd CO S4 B4 A4 S3 A3 B3 vcc</spiceNodes>
+            <rawSpice>
+                .model t-nmos NMOS (level=1)
+                .model t-pmos PMOS (level=1)
+                .subckt FULLADDER vcc gnd A B CIN COUT
+                M1 T1 CIN COUT vcc t-nmos
+                M2 gnd A T1 vcc t-nmos
+                M3 gnd B T1 vcc t-nmos
+                M4 T2 A COUT vcc t-nmos
+                M5 gnd B T2 vcc t-nmos
+                .ends FULLADDER
+                X1 vcc gnd A1 B1 CI C1 FULLADDER
+                X2 vcc gnd A2 B2 C1 C2 FULLADDER
+                X3 vcc gnd A3 B3 C2 C3 FULLADDER
+                X4 vcc gnd A4 B4 C3 CO FULLADDER
+            </rawSpice>
+            <datasheet>74HC283.png</datasheet>
+        </icConfig>
+    </part>
+
 </parts>

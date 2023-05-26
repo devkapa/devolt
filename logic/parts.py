@@ -237,6 +237,7 @@ class Breadboard(Part):
         self.plugins = {} if plugins is None else plugins
         self.main_board_rects, self.main_rails = self.create_rects(main, "main")
         self.pr_rects, self.pr_rails = self.create_rects(power_rail, "power")
+        self.plain_surface = pygame.Surface(self.texture.get_size())
 
     def __getstate__(self):
         """Return state values to be pickled."""
@@ -345,6 +346,19 @@ class Breadboard(Part):
                     return real_r_pos
         return 0, 0
 
+    def surface_led(self):
+        surface = self.plain_surface.copy()
+        surface.set_colorkey((0, 0, 0))
+        for plugin in self.plugins:
+            plugin_obj = self.plugins[plugin]
+            if isinstance(plugin_obj, LED):
+                plugin_rect = plugin.rect
+                plugin_surf = plugin_obj.surface(self)[0]
+                plugin_size = plugin_surf.get_width(), plugin_surf.get_height()
+                plugin_pos = (plugin_rect.centerx - plugin_size[0] / 2, plugin_rect.centery - plugin_size[1] / 2)
+                surface.blit(plugin_surf, plugin_pos)
+        return surface
+
     def surface(self, real_pos, scale):
         rect_hovered = None
         surface = self.texture.copy()
@@ -397,6 +411,7 @@ class Breadboard(Part):
                     self.env.selected = self
         if self.env.selected == self:
             pygame.draw.rect(surface, COL_SELECTED, self.texture.get_rect(), width=math.floor(4/scale[0]))
+        self.cached_surface = surface
         return surface, rect_hovered
 
 
@@ -478,7 +493,7 @@ class IntegratedCircuit(PluginPart):
     def draw(self, inch_tenth, radius, gap):
         win = pygame.Surface(((self.dip_count/2)*inch_tenth, gap+inch_tenth))
         handler = TextHandler(self.env, 'Play-Regular.ttf', radius*4)
-        pin_handler = TextHandler(self.env, 'Play-Regular.ttf', radius)
+        pin_handler = TextHandler(self.env, 'Play-Regular.ttf', math.floor(radius*1.5))
         label = handler.render(self.name)
         win.set_colorkey((0, 0, 0))
         rect = pygame.Rect(0, radius, win.get_width(), win.get_height()-(2*radius))
