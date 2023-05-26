@@ -307,17 +307,40 @@
             <rawSpice>
                 .model t-nmos NMOS (level=1)
                 .model t-pmos PMOS (level=1)
-                .subckt FULLADDER vcc gnd A B CIN COUT
-                M1 T1 CIN COUT vcc t-nmos
-                M2 gnd A T1 vcc t-nmos
-                M3 gnd B T1 vcc t-nmos
-                M4 T2 A COUT vcc t-nmos
-                M5 gnd B T2 vcc t-nmos
+                .subckt FULLADDER vcc gnd A B CIN COUT SOUT
+                M1 T1 A vcc vcc t-pmos
+                M2 T2 A vcc vcc t-pmos
+                M3 T3 A vcc vcc t-pmos
+                M4 T4 A vcc vcc t-pmos
+                M5 T1 B vcc vcc t-pmos
+                M6 ICO B T2 vcc t-pmos
+                M7 T3 B vcc vcc t-pmos
+                M8 T5 B T4 vcc t-pmos
+                M9 ICO CIN T1 vcc t-pmos
+                M10 T3 CIN vcc vcc t-pmos
+                M11 ISO CIN T5 vcc t-pmos
+                M12 ISO ICO T3 vcc t-pmos
+                M13 SOUT ISO vcc vcc t-pmos
+                M14 T6 ICO ISO vcc t-nmos
+                M15 gnd ISO SOUT vcc t-nmos
+                M16 T7 CIN ICO gnd t-nmos
+                M17 B CIN T6 gnd t-nmos
+                M18 T8 CIN ISO gnd t-nmos
+                M19 gnd B T7 vcc t-nmos
+                M20 T9 B ICO vcc t-nmos
+                M21 gnd B T6 vcc t-nmos
+                M22 T10 B T8 gnd t-nmos
+                M23 gnd A T7 vcc t-nmos
+                M24 gnd A T9 vcc t-nmos
+                M25 gnd A T6 vcc t-nmos
+                M26 gnd A T10 vcc t-nmos
+                M27 COUT ICO vcc t-pmos
+                M28 gnd ICO COUT t-nmos
                 .ends FULLADDER
-                X1 vcc gnd A1 B1 CI C1 FULLADDER
-                X2 vcc gnd A2 B2 C1 C2 FULLADDER
-                X3 vcc gnd A3 B3 C2 C3 FULLADDER
-                X4 vcc gnd A4 B4 C3 CO FULLADDER
+                X1 vcc gnd A1 B1 CI C1 S1 FULLADDER
+                X2 vcc gnd A2 B2 C1 C2 S2 FULLADDER
+                X3 vcc gnd A3 B3 C2 C3 S3 FULLADDER
+                X4 vcc gnd A4 B4 C3 CO S4 FULLADDER
             </rawSpice>
             <datasheet>74HC283.png</datasheet>
         </icConfig>
