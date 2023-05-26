@@ -216,7 +216,7 @@
 
     <part type="ic" uid="ic-74hc04">
         <name>74HC04</name>
-        <desc>This chip has 6 hex inverters.</desc>
+        <desc>A hex inverter chip (6 NOT/INVERT gates).</desc>
         <picture>ic.png</picture>
         <texture>ic.png</texture>
         <icConfig>
@@ -292,13 +292,45 @@
                 X3 vcc gnd 3A 3B 3Y OR
                 X4 vcc gnd 4A 4B 4Y OR
             </rawSpice>
-            <datasheet>74HC08.png</datasheet>
+            <datasheet>74HC32.png</datasheet>
         </icConfig>
     </part>
 
-    <part type="ic" uid="ic-74hc80">
-        <name>74HC80</name>
-        <desc>This chip has a 4 bit full adder with carry.</desc>
+    <part type="ic" uid="ic-74hc86">
+        <name>74HC86</name>
+        <desc>This chip has quad 2-input XOR gates.</desc>
+        <picture>ic.png</picture>
+        <texture>ic.png</texture>
+        <icConfig>
+            <dipCount>14</dipCount>
+            <spiceNodes>1A 1B 1Y 2A 2B 2Y gnd 3Y 3A 3B 4Y 4A 4B vcc</spiceNodes>
+            <rawSpice>
+                .model t-nmos NMOS (level=1)
+                .model t-pmos PMOS (level=1)
+                .subckt NAND vcc gnd A B Y
+                M1 Y A vcc vcc t-pmos
+                M2 Y B vcc vcc t-pmos
+                M3 Y A temp gnd t-nmos
+                M4 temp B gnd gnd t-nmos
+                .ends NAND
+                .subckt XOR vcc gnd A B Y
+                X1 vcc gnd A B T NAND
+                X2 vcc gnd A T G NAND
+                X3 vcc gnd B T H NAND
+                X4 vcc gnd G H Y NAND
+                .ends XOR
+                X1 vcc gnd 1A 1B 1Y XOR
+                X2 vcc gnd 2A 2B 2Y XOR
+                X3 vcc gnd 3A 3B 3Y XOR
+                X4 vcc gnd 4A 4B 4Y XOR
+            </rawSpice>
+            <datasheet>74HC86.png</datasheet>
+        </icConfig>
+    </part>
+
+    <part type="ic" uid="ic-74hc283">
+        <name>74HC283</name>
+        <desc>This chip has a 4 bit full adder with ripple carry.</desc>
         <picture>ic.png</picture>
         <texture>ic.png</texture>
         <icConfig>
@@ -349,6 +381,30 @@
             </rawSpice>
             <datasheet>74HC283.png</datasheet>
         </icConfig>
+    </part>
+
+    <part type="switch" uid="spdt-switch">
+        <name>SPDT Switch</name>
+        <desc>A single-pole double-throw switch.</desc>
+        <picture>switch.png</picture>
+        <texture>switch.png</texture>
+        <switchConfig latch="1">
+            <dipCount>6</dipCount>
+            <spiceNodes>P1 O P2 P2 O P1</spiceNodes>
+            <datasheet>spdt.png</datasheet>
+        </switchConfig>
+    </part>
+
+    <part type="switch" uid="button-switch">
+        <name>Button</name>
+        <desc>A push button switch.</desc>
+        <picture>button.png</picture>
+        <texture>button.png</texture>
+        <switchConfig latch="0">
+            <dipCount>6</dipCount>
+            <spiceNodes>P1 O P2 P2 O P1</spiceNodes>
+            <datasheet>spdt.png</datasheet>
+        </switchConfig>
     </part>
 
 </parts>

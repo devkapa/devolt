@@ -25,13 +25,13 @@ from ui.interface import TabbedMenu
 
 from protosim.project import Project, Occupier
 from logic.electronics import Wire, ICSpiceSubCircuit, Sink
-from logic.parts import PartManager, Part, parse, PowerSupply, Breadboard, IntegratedCircuit, LED, PluginPart
+from logic.parts import PartManager, Part, parse, PowerSupply, Breadboard, IntegratedCircuit, LED, PluginPart, Switch
 
 # Versioning
 version = "0.0.1"
 
 # PySpice Logger
-# setup_logging()
+setup_logging(logging_level='INFO')
 
 # Enable smart scaling
 flags = SCALED
@@ -221,6 +221,9 @@ def main():
 
     while running:
 
+        # Boolean to check for invalid netlists, post warning if so
+        warning = False
+
         # Limit the loop to run at the frame tick rate
         clock.tick(fps)
 
@@ -243,6 +246,19 @@ def main():
             b.temp = b.uuid
             connected.append([a, b])
 
+        for board in boards:
+            for plugin in board.plugins:
+                plugin_object = board.plugins[plugin]
+                if isinstance(plugin_object, Switch):
+                    pins_to_nodes = plugin_object.pins_to_nodes
+                    connected.append([pins_to_nodes[0], pins_to_nodes[5]])
+                    connected.append([pins_to_nodes[1], pins_to_nodes[4]])
+                    connected.append([pins_to_nodes[2], pins_to_nodes[3]])
+                    if plugin_object.state:
+                        connected.append([pins_to_nodes[1], pins_to_nodes[2]])
+                    else:
+                        connected.append([pins_to_nodes[1], pins_to_nodes[0]])
+
         connected = unionise_nodes(connected)
 
         for common_node in connected:
@@ -260,7 +276,7 @@ def main():
         for index, board in enumerate(boards):
             for jndex, plugin in enumerate(board.plugins):
                 plugin_object = board.plugins[plugin]
-                if isinstance(plugin_object, IntegratedCircuit):
+                if isinstance(plugin_object, IntegratedCircuit) and not isinstance(plugin_object, Switch):
                     name, raw, nodes = plugin_object.name, plugin_object.raw_spice, plugin_object.spice_nodes
                     pins_to_nodes = [i.temp for i in plugin_object.pins_to_nodes.values()]
                     circuit.subcircuit(ICSpiceSubCircuit(f'{plugin_object.name}-{index}{jndex}', raw, nodes))
@@ -279,6 +295,7 @@ def main():
             else:
                 node_analysis = {}
         except PySpice.Spice.NgSpice.Shared.NgSpiceCommandError:
+            warning = True
             node_analysis = {}
 
         for display in displays:
@@ -293,6 +310,8 @@ def main():
 
         # Check if the project was saved
         saved = "" if project.saved[0] else "*"
+
+        mouse_button_down = False
 
         # Check for new events 
         for event in pygame.event.get():
@@ -405,6 +424,7 @@ def main():
                     edit_button.pos = (WIDTH / 2 + action_bar_title[0].get_width() / 2 + 10 + 5, edit_button.pos[1])
 
                 if event.type == pygame.MOUSEBUTTONDOWN:
+                    mouse_button_down = True
                     if pygame.mouse.get_pressed()[0]:
                         if project.in_hand is None:
                             if project.point_hovered is not None:
@@ -528,6 +548,18 @@ def main():
 
             pygame.display.set_caption(f"{saved}{project.display_name} • de:volt")
             draw_sim(win, sidebar_width, project, sim_manager, action_bar_title, sidebar, show_datasheet)
+            if warning:
+                warning_rect = pygame.Rect(WIDTH - 300, ACTION_BAR_HEIGHT, 300, 0)
+                warning_text = "Oops! Looks like one of your electrical components has floating input/s " \
+                               "(not connected). Check to make sure ALL inputs are plugged in, even if they are" \
+                               " not in use!"
+                warning_label, height = version_handler.render_multiline(warning_text, width=warning_rect.w - 20)
+                warning_rect.h = height + 40
+                pygame.draw.rect(win, COL_WARNING, warning_rect)
+                acc = 0
+                for label in warning_label:
+                    win.blit(label, (WIDTH - 300 + 20, ACTION_BAR_HEIGHT + 20 + acc))
+                    acc += label.get_height() + 5
 
             keys_pressed = pygame.key.get_pressed()
 
@@ -540,6 +572,12 @@ def main():
             if not sim_manager.hovered:
                 if pygame.mouse.get_cursor() != pygame.SYSTEM_CURSOR_ARROW:
                     pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_ARROW)
+
+            if mouse_button_down and pygame.mouse.get_pressed()[0]:
+                if project.last_surface.get_rect(topleft=project.pos).collidepoint(pygame.mouse.get_pos()):
+                    if ENV.selected is not None:
+                        if isinstance(ENV.selected, Switch):
+                            ENV.selected.state = 1 - ENV.selected.state
 
         pygame.display.update()
 

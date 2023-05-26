@@ -111,6 +111,17 @@ def parse(xml_path):
                         LED
                     electronics[part_uid] = led
 
+                if part_type == "switch":
+                    switch_config = part.find("switchConfig")
+                    dip_count = int(switch_config.find("dipCount").text)
+                    spice_nodes = tuple(switch_config.find("spiceNodes").text.split(" "))
+                    datasheet = switch_config.find("datasheet").text
+                    latch = int(switch_config.attrib.get("latch"))
+
+                    ele = (part_name, part_desc, part_texture, part_picture, dip_count, "", spice_nodes,
+                           latch, datasheet), Switch
+                    electronics[part_uid] = ele
+
                 # TODO: Other part types (resistor, transistor, diode)
 
             except TypeError:
@@ -382,12 +393,17 @@ class Breadboard(Part):
                     if plugin_rect not in self.env.query_disable:
                         self.env.query_disable.append(plugin_rect)
                     pygame.draw.rect(surface, COL_SELECTED, plugin_surf.get_rect(topleft=plugin_pos), width=math.floor(2 / scale[0]))
-                    if pygame.mouse.get_pressed()[0] and incomplete_wire is False:
-                        plugin_obj.deletion_key = self, plugin
-                        self.env.selected = plugin_obj
+                    if pygame.mouse.get_pressed()[0]:
+                        if incomplete_wire is False:
+                            plugin_obj.deletion_key = self, plugin
+                            self.env.selected = plugin_obj
                 else:
                     if plugin_rect in self.env.query_disable:
                         self.env.query_disable.remove(plugin_rect)
+            if not pygame.mouse.get_pressed()[0]:
+                if isinstance(plugin_obj, Switch):
+                    if not plugin_obj.latch:
+                        plugin_obj.state = 0
             if self.env.selected == plugin_obj:
                 pygame.draw.rect(surface, COL_SELECTED, plugin_surf.get_rect(topleft=plugin_pos), width=math.floor(4 / scale[0]))
         if not len(self.env.query_disable) or incomplete_wire:
@@ -518,3 +534,38 @@ class IntegratedCircuit(PluginPart):
         gap = main_board_config.segment_gap - (main_board_config.per_column_rows*inch_tenth)
         surface = self.draw(inch_tenth, radius, gap)
         return surface, None
+
+
+class Switch(IntegratedCircuit):
+
+    def __init__(self, name, desc, texture, preview_texture, dip_count, raw_spice, spice_nodes, latch, datasheet_img, env, pin_map=None):
+        super().__init__(name, desc, texture, preview_texture, dip_count, raw_spice, spice_nodes, datasheet_img, env, pin_map=pin_map)
+        self.state = 0
+        self.latch = latch
+        self.raw_spice = ""
+
+    def __getstate__(self):
+        """Return state values to be pickled."""
+        return self.name, self.desc, self.texture_name, self.preview_texture_name, self.dip_count, self.raw_spice, self.spice_nodes, self.latch, self.datasheet_file, self.pins_to_nodes
+
+    def __setstate__(self, state):
+        """Restore state from the unpickled state values."""
+        self.__init__(*state[:-1], pygame.env, pin_map=state[-1])
+
+    def draw(self, inch_tenth, radius, gap):
+        win = pygame.Surface(((self.dip_count/2)*inch_tenth, gap+inch_tenth))
+        win.set_colorkey((0, 0, 0))
+        rect = pygame.Rect(0, radius, win.get_width(), win.get_height()-(2*radius))
+        pygame.draw.rect(win, COL_SWITCH, rect)
+        switch_shaft = pygame.Rect(rect.centerx - rect.w*3/8, rect.centery - rect.h*1/5, rect.w*3/4, rect.h*2/5)
+        pygame.draw.rect(win, COL_SWITCH_SHAFT, switch_shaft)
+        switch = pygame.Rect((rect.centerx - rect.w*3/8) + (self.state*rect.w*3/8), rect.centery - rect.h*1/5, rect.w*3/8, rect.h*2/5)
+        pygame.draw.rect(win, COL_BLACK, switch)
+        for i in range(self.dip_count):
+            if i < self.dip_count/2:
+                r = pygame.Rect((inch_tenth/2) - (radius/2) + (inch_tenth*i), win.get_height()-radius, radius, radius)
+                pygame.draw.rect(win, COL_IC_PIN, r)
+            else:
+                r = pygame.Rect((win.get_width() - (inch_tenth / 2)) - (radius/2) - (inch_tenth * (i-(self.dip_count/2))), 0, radius, radius)
+                pygame.draw.rect(win, COL_IC_PIN, r)
+        return win
