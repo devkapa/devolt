@@ -264,25 +264,6 @@ class Project:
             if rect_hovered is not None:
                 temp_hovered = rect_hovered
 
-        for coord in self.boards:
-            element = self.boards[coord]
-            from logic.parts import Breadboard, LED
-            if not isinstance(element, Breadboard):
-                continue
-            for plugin in element.plugins:
-                plugin_obj = element.plugins[plugin]
-                if isinstance(plugin_obj, LED) and not plugin_obj.cathode_connecting:
-                    parent_scale = temp_positions[element][0]
-                    parent_real = temp_positions[element][2]
-                    anode_point = plugin_obj.anode_point.rect.center
-                    anode_point = tuple(map(lambda i, j, k: (i * j) + k, anode_point, parent_scale, parent_real))
-                    parent_scale = temp_positions[plugin_obj.cathode_point.parent][0]
-                    parent_real = temp_positions[plugin_obj.cathode_point.parent][2]
-                    cathode_point = plugin_obj.cathode_point.rect.center
-                    cathode_point = tuple(map(lambda i, j, k: (i * j) + k, cathode_point, parent_scale, parent_real))
-                    pygame.draw.line(self.win, COL_IC_PIN, anode_point, cathode_point, width=4)
-            self.draw_scaled_big(self.win, element, coord, led_only=True)
-
         if self.last_surface is not None:
             if self.last_surface.get_rect(topleft=self.pos).collidepoint(pygame.mouse.get_pos()):
                 self.point_hovered = temp_hovered
@@ -406,6 +387,25 @@ class Project:
                             self.env.query_disable.remove(specific_colour)
                     accumulated += 50
                 colour_selection.append(wire)
+
+        for coord in self.boards:
+            element = self.boards[coord]
+            from logic.parts import Breadboard, LED
+            if not isinstance(element, Breadboard):
+                continue
+            for plugin in element.plugins:
+                plugin_obj = element.plugins[plugin]
+                if isinstance(plugin_obj, LED) and not plugin_obj.cathode_connecting:
+                    parent_scale = temp_positions[element][0]
+                    parent_real = temp_positions[element][2]
+                    anode_point = plugin_obj.anode_point.rect.center
+                    anode_point = tuple(map(lambda i, j, k: (i * j) + k, anode_point, parent_scale, parent_real))
+                    parent_scale = temp_positions[plugin_obj.cathode_point.parent][0]
+                    parent_real = temp_positions[plugin_obj.cathode_point.parent][2]
+                    cathode_point = plugin_obj.cathode_point.rect.center
+                    cathode_point = tuple(map(lambda i, j, k: (i * j) + k, cathode_point, parent_scale, parent_real))
+                    pygame.draw.line(self.win, COL_IC_PIN, anode_point, cathode_point, width=4)
+            self.draw_scaled_big(self.win, element, coord, led_only=True)
 
         if len(colour_selection):
             for index, rect in enumerate(colour_selection):

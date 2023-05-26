@@ -31,7 +31,7 @@ from logic.parts import PartManager, Part, parse, PowerSupply, Breadboard, Integ
 version = "0.0.1"
 
 # PySpice Logger
-setup_logging(logging_level='INFO')
+# setup_logging()
 
 # Enable smart scaling
 flags = SCALED
@@ -218,83 +218,78 @@ def main():
 
     pygame.env = ENV
     show_datasheet = (False, None)
-    run_analysis = False
 
     while running:
 
         # Limit the loop to run at the frame tick rate
         clock.tick(fps)
 
-        if run_analysis:
+        # Create a virtual SPICE circuit
+        circuit = Circuit("dev", ground="gnd")
 
-            # Create a virtual SPICE circuit
-            circuit = Circuit("dev", ground="gnd")
+        # IS = Saturated Current, RS = Ohmic Parasitic Resistance, N = Emission Coefficient
+        circuit.model('LED', 'D', IS=3e-18, RS=17, N=2)
 
-            # IS = Saturated Current, RS = Ohmic Parasitic Resistance, N = Emission Coefficient
-            circuit.model('LED', 'D', IS=3e-18, RS=17, N=2)
+        # Find all power supplies and breadboards in the project
+        supplies = [supply for supply in project.boards.values() if isinstance(supply, PowerSupply)]
+        boards = [board for board in project.boards.values() if isinstance(board, Breadboard)]
 
-            # Find all power supplies and breadboards in the project
-            supplies = [supply for supply in project.boards.values() if isinstance(supply, PowerSupply)]
-            boards = [board for board in project.boards.values() if isinstance(board, Breadboard)]
+        # Unionise wire sets to create common nodes in virtual circuit
+        connected = []
+        for wire in project.wires:
+            a = wire.point_a.common
+            b = wire.point_b.common
+            a.temp = a.uuid
+            b.temp = b.uuid
+            connected.append([a, b])
 
-            # Unionise wire sets to create common nodes in virtual circuit
-            connected = []
-            for wire in project.wires:
-                a = wire.point_a.common
-                b = wire.point_b.common
-                a.temp = a.uuid
-                b.temp = b.uuid
-                connected.append([a, b])
+        connected = unionise_nodes(connected)
 
-            connected = unionise_nodes(connected)
+        for common_node in connected:
+            new_uuid = str(uuid.uuid4()) if not len([i for i in common_node if isinstance(i, Sink)]) else "gnd"
+            for child_node in common_node:
+                child_node.temp = new_uuid
 
-            for common_node in connected:
-                new_uuid = str(uuid.uuid4()) if not len([i for i in common_node if isinstance(i, Sink)]) else "gnd"
-                for child_node in common_node:
-                    child_node.temp = new_uuid
+        displays = []
 
-            displays = []
+        # Create voltage sources in virtual circuit
+        for index, supply in enumerate(supplies):
+            circuit.V(index, supply.points[0].common.temp, supply.points[1].common.temp, supply.voltage)
 
-            # Create voltage sources in virtual circuit
-            for index, supply in enumerate(supplies):
-                circuit.V(index, supply.points[0].common.temp, supply.points[1].common.temp, supply.voltage)
+        # Create ICs and Electronics in virtual circuit
+        for index, board in enumerate(boards):
+            for jndex, plugin in enumerate(board.plugins):
+                plugin_object = board.plugins[plugin]
+                if isinstance(plugin_object, IntegratedCircuit):
+                    name, raw, nodes = plugin_object.name, plugin_object.raw_spice, plugin_object.spice_nodes
+                    pins_to_nodes = [i.temp for i in plugin_object.pins_to_nodes.values()]
+                    circuit.subcircuit(ICSpiceSubCircuit(f'{plugin_object.name}-{index}{jndex}', raw, nodes))
+                    circuit.X(f'{index}{jndex}', f'{plugin_object.name}-{index}{jndex}', *pins_to_nodes)
+                if isinstance(plugin_object, LED):
+                    if not plugin_object.cathode_connecting:
+                        point_a, point_b = plugin_object.anode_point.common.temp, plugin_object.cathode_point.common.temp
+                        circuit.Diode(f'{index}{jndex}', point_a, point_b, model='LED')
+                        displays.append(plugin_object)
 
-            # Create ICs and Electronics in virtual circuit
-            for index, board in enumerate(boards):
-                for jndex, plugin in enumerate(board.plugins):
-                    plugin_object = board.plugins[plugin]
-                    if isinstance(plugin_object, IntegratedCircuit):
-                        name, raw, nodes = plugin_object.name, plugin_object.raw_spice, plugin_object.spice_nodes
-                        pins_to_nodes = [i.temp for i in plugin_object.pins_to_nodes.values()]
-                        circuit.subcircuit(ICSpiceSubCircuit(f'{plugin_object.name}-{index}{jndex}', raw, nodes))
-                        circuit.X(f'{index}{jndex}', f'{plugin_object.name}-{index}{jndex}', *pins_to_nodes)
-                    if isinstance(plugin_object, LED):
-                        if not plugin_object.cathode_connecting:
-                            point_a, point_b = plugin_object.anode_point.common.temp, plugin_object.cathode_point.common.temp
-                            circuit.Diode(f'{index}{jndex}', point_a, point_b, model='LED')
-                            displays.append(plugin_object)
-
-            # If there are elements present in the circuit, evaluate their logic state
-            try:
-                if len(circuit.elements):
-                    simulator = circuit.simulator().operating_point()
-                    node_analysis = simulator.nodes
-                else:
-                    node_analysis = {}
-            except PySpice.Spice.NgSpice.Shared.NgSpiceCommandError:
+        # If there are elements present in the circuit, evaluate their logic state
+        try:
+            if len(circuit.elements):
+                simulator = circuit.simulator().operating_point()
+                node_analysis = simulator.nodes
+            else:
                 node_analysis = {}
+        except PySpice.Spice.NgSpice.Shared.NgSpiceCommandError:
+            node_analysis = {}
 
-            for display in displays:
-                point_a, point_b = display.anode_point.common.temp, display.cathode_point.common.temp
-                if point_a in node_analysis:
-                    if float(node_analysis[point_a]) > 1 and point_b == circuit.gnd:
-                        display.state = 1
-                    else:
-                        display.state = 0
+        for display in displays:
+            point_a, point_b = display.anode_point.common.temp, display.cathode_point.common.temp
+            if point_a in node_analysis:
+                if float(node_analysis[point_a]) > 1 and point_b == circuit.gnd:
+                    display.state = 1
                 else:
                     display.state = 0
-
-            run_analysis = False
+            else:
+                display.state = 0
 
         # Check if the project was saved
         saved = "" if project.saved[0] else "*"
@@ -331,7 +326,6 @@ def main():
             if current_state == PROTOSIM:
 
                 if event.type == PROJECT_CHANGE_EVENT:
-                    run_analysis = True
                     action_bar_title = action_text_handler.render_shadow(saved + project.display_name)
                     edit_button.pos = (WIDTH / 2 + action_bar_title[0].get_width() / 2 + 10 + 5, edit_button.pos[1])
 
