@@ -146,8 +146,8 @@
         <picture>led-white.png</picture>
         <texture>led-white.png</texture>
         <ledConfig>
-            <onColour>255,245,254</onColour>
-            <offColour>225,225,225</offColour>
+            <onColour>255,255,255</onColour>
+            <offColour>10,10,10</offColour>
         </ledConfig>
     </part>
 

@@ -197,6 +197,7 @@ class ListItem:
 
     def event(self):
         new_part = self.part[1](*self.part[0], self.env)
+        self.manager.project.change_made()
         self.manager.project.in_hand = new_part
 
     def set_pos(self, pos):

@@ -560,7 +560,8 @@ class Switch(IntegratedCircuit):
         switch_shaft = pygame.Rect(rect.centerx - rect.w*3/8, rect.centery - rect.h*1/5, rect.w*3/4, rect.h*2/5)
         pygame.draw.rect(win, COL_SWITCH_SHAFT, switch_shaft)
         switch = pygame.Rect((rect.centerx - rect.w*3/8) + (self.state*rect.w*3/8), rect.centery - rect.h*1/5, rect.w*3/8, rect.h*2/5)
-        pygame.draw.rect(win, COL_BLACK, switch)
+        pygame.draw.rect(win, (1, 1, 1), switch)
+        pygame.draw.circle(win, COL_WHITE, switch.center, switch.w/4, width=2)
         for i in range(self.dip_count):
             if i < self.dip_count/2:
                 r = pygame.Rect((inch_tenth/2) - (radius/2) + (inch_tenth*i), win.get_height()-radius, radius, radius)

@@ -52,12 +52,6 @@ class Project:
         self.offset_x += x
         self.offset_y += y
 
-    def grab(self, part):
-        self.in_hand = part
-
-    def drop(self):
-        self.in_hand = None
-
     def save(self, file):
         self.change_made()
         self.display_name = Path(file.name).name
@@ -85,6 +79,7 @@ class Project:
         self.point_hovered = None
         self.incomplete_wire = None
         self.saved = (True, None)
+        self.env.reset()
 
     def change_made(self):
         self.saved = (False, self.saved[1])
@@ -213,6 +208,12 @@ class Project:
                             self.in_hand = self.boards[self.boards[point].parent_coord]
                             self.delete(self.boards[point].parent_coord, remove_wires=False)
                             return
+
+                if mouse_pressed[0] and self.env.selected is not None:
+                    relative_mouse = self.relative_mouse()
+                    point = (math.floor(relative_mouse[0] / self.zoom), math.floor(relative_mouse[1] / self.zoom))
+                    if point not in self.boards:
+                        self.env.selected = None
 
                 self.panning = False
 

@@ -24,7 +24,7 @@ from ui.button import Button, ElementManager
 from ui.interface import TabbedMenu
 
 from protosim.project import Project, Occupier
-from logic.electronics import Wire, ICSpiceSubCircuit, Sink
+from logic.electronics import Wire, ICSpiceSubCircuit, Sink, Node
 from logic.parts import PartManager, Part, parse, PowerSupply, Breadboard, IntegratedCircuit, LED, PluginPart, Switch
 
 # Versioning
@@ -63,7 +63,6 @@ HOME_EVENT = pygame.USEREVENT + 7
 MENU_EVENT = pygame.USEREVENT + 8
 EDIT_EVENT = pygame.USEREVENT + 9
 PROJECT_CHANGE_EVENT = pygame.USEREVENT + 10
-DATASHEET_EVENT = pygame.USEREVENT + 11
 
 
 def draw_homepage(win, homepage_title, homepage_version, visualiser, buttons):
@@ -237,13 +236,15 @@ def main():
         supplies = [supply for supply in project.boards.values() if isinstance(supply, PowerSupply)]
         boards = [board for board in project.boards.values() if isinstance(board, Breadboard)]
 
+        # Reset all nodes
+        for node in Node.instances:
+            node.temp = node.uuid
+
         # Unionise wire sets to create common nodes in virtual circuit
         connected = []
         for wire in project.wires:
             a = wire.point_a.common
             b = wire.point_b.common
-            a.temp = a.uuid
-            b.temp = b.uuid
             connected.append([a, b])
 
         for board in boards:
@@ -364,22 +365,24 @@ def main():
                         sidebar_width = SIDEBAR_WIDTH
 
                 if event.type == UNDO_EVENT:
-                    if len(ENV.undo_states):
-                        ENV.redo_states.append(project.make_save_state())
-                        project.load_save_state(ENV.undo_states[-1])
-                        ENV.undo_states.pop()
-                        action_bar_title = action_text_handler.render_shadow(saved + project.display_name)
-                        edit_button.pos = (WIDTH / 2 + action_bar_title[0].get_width() / 2 + 10 + 5, edit_button.pos[1])
-                        continue
+                    if project.in_hand is None and project.incomplete_wire is None:
+                        if len(ENV.undo_states):
+                            ENV.redo_states.append(project.make_save_state())
+                            project.load_save_state(ENV.undo_states[-1])
+                            ENV.undo_states.pop()
+                            action_bar_title = action_text_handler.render_shadow(saved + project.display_name)
+                            edit_button.pos = (WIDTH / 2 + action_bar_title[0].get_width() / 2 + 10 + 5, edit_button.pos[1])
+                            continue
 
                 if event.type == REDO_EVENT:
-                    if len(ENV.redo_states):
-                        ENV.undo_states.append(project.make_save_state())
-                        project.load_save_state(ENV.redo_states[-1])
-                        ENV.redo_states.pop()
-                        action_bar_title = action_text_handler.render_shadow(saved + project.display_name)
-                        edit_button.pos = (WIDTH / 2 + action_bar_title[0].get_width() / 2 + 10 + 5, edit_button.pos[1])
-                        continue
+                    if project.in_hand is None and project.incomplete_wire is None:
+                        if len(ENV.redo_states):
+                            ENV.undo_states.append(project.make_save_state())
+                            project.load_save_state(ENV.redo_states[-1])
+                            ENV.redo_states.pop()
+                            action_bar_title = action_text_handler.render_shadow(saved + project.display_name)
+                            edit_button.pos = (WIDTH / 2 + action_bar_title[0].get_width() / 2 + 10 + 5, edit_button.pos[1])
+                            continue
 
                 if event.type == EDIT_EVENT:
                     new_name = sd.askstring("Edit Project Name", "Enter your new project name below.",
@@ -480,7 +483,6 @@ def main():
                                             break
                                         occupying_points.append(occupying_point)
                                 if allowed:
-                                    project.change_made()
                                     project.boards[point] = project.in_hand
                                     occupier = Occupier(point)
                                     for occupying_point in occupying_points:
@@ -490,7 +492,7 @@ def main():
                                     if project.in_hand in ENV.query_disable:
                                         ENV.query_disable.remove(project.in_hand)
                                     project.in_hand = None
-
+                                    project.change_made()
                 if event.type == pygame.KEYDOWN:
 
                     if event.key == pygame.K_ESCAPE:
@@ -511,7 +513,7 @@ def main():
                         if not show_datasheet[0]:
                             if ENV.selected is not None:
                                 if isinstance(ENV.selected, IntegratedCircuit):
-                                    scaled_image = pygame.transform.scale(ENV.selected.datasheet_image, (200, 200))
+                                    scaled_image = pygame.transform.scale(ENV.selected.datasheet_image, (300, 300))
                                     show_datasheet = (True, scaled_image)
                         else:
                             show_datasheet = (False, None)
@@ -568,6 +570,8 @@ def main():
                     pygame.event.post(pygame.event.Event(UNDO_EVENT))
                 if keys_pressed[pygame.K_y]:
                     pygame.event.post(pygame.event.Event(REDO_EVENT))
+                if keys_pressed[pygame.K_s]:
+                    pygame.event.post(pygame.event.Event(SAVE_EVENT))
 
             if not sim_manager.hovered:
                 if pygame.mouse.get_cursor() != pygame.SYSTEM_CURSOR_ARROW:
