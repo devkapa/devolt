@@ -165,9 +165,10 @@ class Part:
               "NOTE: You must tie unused inputs on ICs to ground or 5V for de:volt simulation to function. This " \
               "practice encourages you to maintain healthy chip temperature and avoid high-impedance floating " \
               "inputs, which may cause confusing, unexpected logic errors in real life circuitry."
-    ELECTRONICS_DESC = "Electrical components, such as resistors, diodes and transistors, are basic " \
+    ELECTRONICS_DESC = "Electrical components, such as resistors and diodes, are basic " \
                        "building blocks used in electronic circuits to control the flow of electricity and create " \
-                       "complex circuits that perform specific functions."
+                       f"complex circuits that perform specific functions. {' '*120}NOTE: To make a resistor, draw a " \
+                       "wire normally, then select it to choose a resistance."
 
     def __init__(self, name, desc, texture, preview_texture, env):
         path = env.get_main_path()
@@ -467,6 +468,7 @@ class LED(PluginPart):
         self.cathode_connecting = False
         self.anode_point = anode_point
         self.cathode_point = cathode_point
+        self.alive = True
 
     def __getstate__(self):
         """Return state values to be pickled."""
@@ -481,7 +483,10 @@ class LED(PluginPart):
         surface = pygame.Surface((inch_tenth*2, inch_tenth*2))
         surface.set_colorkey((0, 0, 0))
         pygame.draw.circle(surface, self.off_colour, surface.get_rect().center, inch_tenth)
-        if self.state:
+        if not self.alive:
+            pygame.draw.line(surface, COL_FAKE_BLACK, (0, 0), (inch_tenth*2, inch_tenth*2), width=10)
+            pygame.draw.line(surface, COL_FAKE_BLACK, (inch_tenth*2, 0), (0, inch_tenth*2), width=10)
+        elif self.state:
             pygame.draw.circle(surface, self.on_colour, surface.get_rect().center, math.floor(3*(inch_tenth/4)))
         return surface, None
 
@@ -561,7 +566,7 @@ class Switch(IntegratedCircuit):
         pygame.draw.rect(win, COL_SWITCH_SHAFT, switch_shaft)
         switch = pygame.Rect((rect.centerx - rect.w*3/8) + (self.state*rect.w*3/8), rect.centery - rect.h*1/5, rect.w*3/8, rect.h*2/5)
         pygame.draw.rect(win, (1, 1, 1), switch)
-        pygame.draw.circle(win, COL_WHITE, switch.center, switch.w/4, width=2)
+        pygame.draw.circle(win, COL_WHITE, switch.center, switch.w/4)
         for i in range(self.dip_count):
             if i < self.dip_count/2:
                 r = pygame.Rect((inch_tenth/2) - (radius/2) + (inch_tenth*i), win.get_height()-radius, radius, radius)

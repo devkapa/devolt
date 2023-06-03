@@ -220,8 +220,8 @@ def main():
 
     while running:
 
-        # Boolean to check for invalid netlists, post warning if so
-        warning = False
+        # Check for invalid SPICE netlists, dead LEDs, post warning if so
+        warning = ""
 
         # Limit the loop to run at the frame tick rate
         clock.tick(fps)
@@ -230,7 +230,7 @@ def main():
         circuit = Circuit("dev", ground="gnd")
 
         # IS = Saturated Current, RS = Ohmic Parasitic Resistance, N = Emission Coefficient
-        circuit.model('LED', 'D', IS=3e-18, RS=17, N=2)
+        circuit.model('LED', 'D', IS=1e-19, N=1.6, RS=2.5, EG=2.1)
 
         # Find all power supplies and breadboards in the project
         supplies = [supply for supply in project.boards.values() if isinstance(supply, PowerSupply)]
@@ -243,6 +243,8 @@ def main():
         # Unionise wire sets to create common nodes in virtual circuit
         connected = []
         for wire in project.wires:
+            if wire.resistance != 0:
+                continue
             a = wire.point_a.common
             b = wire.point_b.common
             connected.append([a, b])
@@ -268,6 +270,10 @@ def main():
                 child_node.temp = new_uuid
 
         displays = []
+
+        for index, wire in enumerate(project.wires):
+            if wire.resistance != 0:
+                circuit.R(index, wire.point_a.common.temp, wire.point_b.common.temp, wire.resistance)
 
         # Create voltage sources in virtual circuit
         for index, supply in enumerate(supplies):
@@ -296,18 +302,42 @@ def main():
             else:
                 node_analysis = {}
         except PySpice.Spice.NgSpice.Shared.NgSpiceCommandError:
-            warning = True
+            warning += "Oops! Looks like one of your electrical components has floating input/s " \
+                       "(not connected). Check to make sure ALL inputs are plugged in, even if they are" \
+                       " not in use! You may have also shorted your power supply."
             node_analysis = {}
 
         for display in displays:
-            point_a, point_b = display.anode_point.common.temp, display.cathode_point.common.temp
-            if point_a in node_analysis:
-                if float(node_analysis[point_a]) > 1 and point_b == circuit.gnd:
-                    display.state = 1
+            if display.alive:
+                point_a, point_b = display.anode_point.common.temp, display.cathode_point.common.temp
+                if point_a in node_analysis:
+                    if 2 >= float(node_analysis[point_a]) >= 1.5 and point_b == circuit.gnd:
+                        display.state = 1
+                    else:
+                        if float(node_analysis[point_a]) > 2:
+                            if point_b == circuit.gnd:
+                                display.alive = False
+                                warning += "An LED has received too much current and has died. " \
+                                           "Please replace it and use a resistor to limit the current."
+                                display.state = 0
+                            elif point_b in node_analysis:
+                                if 2 >= (float(node_analysis[point_a]) - float(node_analysis[point_b])) >= 1.5:
+                                    display.state = 1
+                                else:
+                                    if (float(node_analysis[point_a]) - float(node_analysis[point_b])) > 2:
+                                        display.alive = False
+                                        warning += "An LED has received too much voltage/current and has died. " \
+                                                   "Please replace it and use a resistor to limit the current."
+                                    display.state = 0
+                            else:
+                                display.state = 0
+                        else:
+                            display.state = 0
                 else:
                     display.state = 0
             else:
-                display.state = 0
+                warning += "An LED has received too much voltage/current and has died " \
+                           "(indicated by an X on the LED). Please replace it and use a resistor to limit the current."
 
         # Check if the project was saved
         saved = "" if project.saved[0] else "*"
@@ -550,12 +580,9 @@ def main():
 
             pygame.display.set_caption(f"{saved}{project.display_name} • de:volt")
             draw_sim(win, sidebar_width, project, sim_manager, action_bar_title, sidebar, show_datasheet)
-            if warning:
+            if warning != "":
                 warning_rect = pygame.Rect(WIDTH - 300, ACTION_BAR_HEIGHT, 300, 0)
-                warning_text = "Oops! Looks like one of your electrical components has floating input/s " \
-                               "(not connected). Check to make sure ALL inputs are plugged in, even if they are" \
-                               " not in use!"
-                warning_label, height = version_handler.render_multiline(warning_text, width=warning_rect.w - 20)
+                warning_label, height = version_handler.render_multiline(warning, width=warning_rect.w - 20)
                 warning_rect.h = height + 40
                 pygame.draw.rect(win, COL_WARNING, warning_rect)
                 acc = 0

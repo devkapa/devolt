@@ -99,7 +99,6 @@ class List:
         self.scroll_up_img = pygame.transform.scale(scroll_arrow, (16, 16))
         self.scroll_down_img = pygame.transform.flip(self.scroll_up_img, False, True)
         self.overflow = 0
-        self.last_mouse_pos = (0, 0)
 
     def scroll(self, x):
         if self.overflow:
@@ -123,14 +122,13 @@ class List:
                     self.clicked = True
                     if self not in env.query_disable:
                         env.query_disable.append(self)
-                    y_change = tuple(map(sub, pygame.mouse.get_pos(), self.last_mouse_pos))[1]
+                    y_change = pygame.mouse.get_rel()[1]
                     self.scroll(y_change)
-                    self.last_mouse_pos = pygame.mouse.get_pos()
                 else:
                     if self in env.query_disable:
                         env.query_disable.remove(self)
                     self.clicked = False
-                    self.last_mouse_pos = pygame.mouse.get_pos()
+                    pygame.mouse.get_rel()
 
     def surface(self):
         surface = pygame.Surface(self.size)

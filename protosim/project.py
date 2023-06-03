@@ -2,11 +2,13 @@ import math
 import pickle
 
 import pygame
-from numpy import arctan, cos, sin
 from operator import sub, mul
 from pathlib import Path
+
+from logic.math import Vector
 from ui.colours import *
 from ui.text import TextHandler
+from tkinter import Tk, StringVar, OptionMenu, Button
 
 
 class SaveState:
@@ -40,13 +42,13 @@ class Project:
         self.point_hovered = None
         self.incomplete_wire = None
         self.handler = TextHandler(env, 'Play-Regular.ttf', 25)
-        wire_colour_handler = TextHandler(env, 'Play-Regular.ttf', 18)
+        self.wire_colour_handler = TextHandler(env, 'Play-Regular.ttf', 18)
         self.drag_warning = self.handler.render("Drag above a breadboard hole", colour=COL_HOME_BKG)
         self.anode_warning = self.handler.render("Select anode (+)", colour=COL_BLACK)
         self.cathode_warning = self.handler.render("Select cathode (-)", colour=COL_BLACK)
-        self.colour_text = wire_colour_handler.render("Select wire colour", colour=COL_BLACK)
+        self.colour_text = self.wire_colour_handler.render("Select wire colour", colour=COL_BLACK)
+        self.resist_text = self.wire_colour_handler.render("Change resistance", colour=COL_BLACK)
         self.saved = (True, None)
-        self.tester = self.win.copy()
 
     def shift(self, x, y):
         self.offset_x += x
@@ -136,7 +138,6 @@ class Project:
         self.width = width if width is not None else self.width
         self.height = height if height is not None else self.height
         self.win = pygame.Surface((self.width, self.height))
-        self.tester = self.win.copy()
 
     def relative_mouse(self):
         mouse_pos = pygame.mouse.get_pos()
@@ -209,7 +210,7 @@ class Project:
                             self.delete(self.boards[point].parent_coord, remove_wires=False)
                             return
 
-                if mouse_pressed[0] and self.env.selected is not None:
+                if mouse_pressed[0] and self.env.selected is not None and not len(self.env.query_disable):
                     relative_mouse = self.relative_mouse()
                     point = (math.floor(relative_mouse[0] / self.zoom), math.floor(relative_mouse[1] / self.zoom))
                     if point not in self.boards:
@@ -350,9 +351,46 @@ class Project:
             b_scaled_center = tuple(map(mul, b_scale, b_rect.center))
             b_real_center = tuple(map(sum, zip(b_pos, b_scaled_center)))
             wire_rect = pygame.draw.line(self.win, COL_BLACK, a_real_center, b_real_center, width=4)
+            pygame.draw.line(self.win, wire.colour, a_real_center, b_real_center, width=2)
+            if wire.resistance != 0:
+                vec_a = Vector(*a_real_center)
+                vec_b = Vector(*b_real_center)
+                vec_ab = vec_b - vec_a
+                vec_c = (vec_a + vec_b)*(1/2)
+                vec_ac = (vec_a + vec_c)*(1/2)
+                vec_cb = (vec_b + vec_c)*(1/2)
+                if vec_a.y == vec_b.y:
+                    vec_perpendicular = vec_ab.perptox().normalized()
+                elif vec_a.x == vec_b.x:
+                    vec_perpendicular = vec_ab.perptoy().normalized()
+                else:
+                    vec_perpendicular = vec_ab.perp().normalized()
+                x = 0
+                while x <= 10:
+                    vec_p1_a = vec_ac + vec_perpendicular * x
+                    vec_p2_a = vec_ac - vec_perpendicular * x
+                    vec_p1_b = vec_cb + vec_perpendicular * x
+                    vec_p2_b = vec_cb - vec_perpendicular * x
+                    lines = [(vec_p1_a.x, vec_p1_a.y), (vec_p1_b.x, vec_p1_b.y),
+                             (vec_p2_b.x, vec_p2_b.y), (vec_p2_a.x, vec_p2_a.y)]
+                    pygame.draw.lines(self.win, COL_RESISTOR, True, lines, width=2)
+                    x += 1
+                vec_band_1 = (vec_c + vec_ac) * (1 / 2)
+                vec_band_2 = (vec_c + vec_band_1) * (1 / 2)
+                vec_band_3 = vec_c
+                vec_band_5 = (vec_c + vec_cb) * (1 / 2)
+                vec_band_4 = (vec_c + vec_band_5) * (1 / 2)
+                band_vecs = [vec_band_1, vec_band_2, vec_band_3, vec_band_4, vec_band_5]
+                x = 0
+                while x <= 4:
+                    band_colour = wire.convert(colours=True)[x]
+                    vec = band_vecs[x]
+                    vec_p1 = vec + vec_perpendicular * 10
+                    vec_p2 = vec - vec_perpendicular * 10
+                    pygame.draw.line(self.win, band_colour, (vec_p1.x, vec_p1.y), (vec_p2.x, vec_p2.y), width=2)
+                    x += 1
             collide_checker = wire_rect.copy()
             collide_checker.topleft = tuple(map(sum, zip(wire_rect.topleft, self.pos)))
-            pygame.draw.line(self.win, wire.colour, a_real_center, b_real_center, width=2)
             keys_pressed = pygame.key.get_pressed()
             if collide_checker.collidepoint(pygame.mouse.get_pos()) and keys_pressed[pygame.K_LSHIFT]:
                 if not len(self.env.query_disable) or wire in self.env.query_disable:
@@ -366,7 +404,7 @@ class Project:
                     self.env.query_disable.remove(wire)
             if self.env.selected == wire:
                 colour_selection.clear()
-                colour_rect = pygame.Rect(wire_rect.bottomright, (310, 80))
+                colour_rect = pygame.Rect(wire_rect.bottomright, (370, 120))
                 colour_selection.append(colour_rect)
                 real_colour_rect = colour_rect.copy()
                 real_colour_rect.topleft = tuple(map(sum, zip(colour_rect.topleft, self.pos)))
@@ -387,8 +425,33 @@ class Project:
                         if specific_colour in self.env.query_disable:
                             self.env.query_disable.remove(specific_colour)
                     accumulated += 50
+                resistance_change = pygame.Rect(colour_rect.x + 10, colour_rect.y + self.colour_text.get_height() + 60,
+                                                self.resist_text.get_width() + 20, 30)
+                colour_selection.append(resistance_change)
+                real = resistance_change.copy()
+                real.topleft = tuple(map(sum, zip(resistance_change.topleft, self.pos)))
+                if real.collidepoint(pygame.mouse.get_pos()):
+                    if resistance_change not in self.env.query_disable:
+                        self.env.query_disable.append(resistance_change)
+                    if pygame.mouse.get_pressed()[0]:
+                        quick = Tk()
+                        quick.title("Choose resistance")
+                        quick.geometry("200x70")
+                        quick.eval('tk::PlaceWindow . center')
+                        variable = StringVar(quick)
+                        variable.set(wire.convert())
+                        w = OptionMenu(quick, variable, *wire.resistances.keys())
+                        w.pack()
+                        Button(quick, text="Done", command=quick.destroy).pack()
+                        quick.mainloop()
+                        wire.resistance = wire.convert(x=variable.get())
+                        self.change_made()
+                else:
+                    if resistance_change in self.env.query_disable:
+                        self.env.query_disable.remove(resistance_change)
                 colour_selection.append(wire)
-
+                if wire.resistance != 0:
+                    wire.colour = COL_IC_PIN
         for coord in self.boards:
             element = self.boards[coord]
             from logic.parts import Breadboard, LED
@@ -415,6 +478,13 @@ class Project:
                     self.win.blit(self.colour_text, (rect.x + 10, rect.y + 5))
                     continue
                 if index == len(colour_selection) - 1:
+                    continue
+                if index == len(colour_selection) - 2:
+                    pygame.draw.rect(self.win, COL_HOME_TITLE, rect)
+                    pos = self.win.blit(self.resist_text, (rect.x + 10, rect.y + 5))
+                    current = f"Current: {colour_selection[-1].convert()} ohms"
+                    current = self.wire_colour_handler.render(current, colour=COL_BLACK)
+                    self.win.blit(current, (pos.right + 20, pos.y))
                     continue
                 pygame.draw.rect(self.win, colours[index-1], rect)
                 if colour_selection[-1].colour == colours[index-1]:
