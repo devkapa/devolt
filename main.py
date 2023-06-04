@@ -189,7 +189,7 @@ def main():
     project = Project(WIDTH - sidebar_width, HEIGHT - ACTION_BAR_HEIGHT, ENV)
 
     # Parts
-    default_parts = parse(os.path.join(ENV.get_main_path(), 'logic', 'parts.xml'))
+    default_parts = parse(os.path.join(ENV.get_main_path(), 'assets', 'parts.xml'))
     boards = PartManager("Boards", Part.BOARD_DESC, default_parts[0], project)
     ics = PartManager("Integrated Circuits", Part.IC_DESC, default_parts[1], project, small_title="ICs")
     electronics = PartManager("Electronics", Part.ELECTRONICS_DESC, default_parts[2], project)
@@ -270,10 +270,15 @@ def main():
                 child_node.temp = new_uuid
 
         displays = []
+        goes_to_gnd = []
 
         for index, wire in enumerate(project.wires):
             if wire.resistance != 0:
                 circuit.R(index, wire.point_a.common.temp, wire.point_b.common.temp, wire.resistance)
+                if wire.point_a.common.temp == "gnd":
+                    goes_to_gnd.append(wire.point_a.common.temp)
+                if wire.point_b.common.temp == "gnd":
+                    goes_to_gnd.append(wire.point_b.common.temp)
 
         # Create voltage sources in virtual circuit
         for index, supply in enumerate(supplies):
@@ -294,11 +299,13 @@ def main():
                         circuit.Diode(f'{index}{jndex}', point_a, point_b, model='LED')
                         displays.append(plugin_object)
 
+        simulator = circuit.simulator()
+
         # If there are elements present in the circuit, evaluate their logic state
         try:
             if len(circuit.elements):
-                simulator = circuit.simulator().operating_point()
-                node_analysis = simulator.nodes
+                analysis = simulator.operating_point()
+                node_analysis = analysis.nodes
             else:
                 node_analysis = {}
         except PySpice.Spice.NgSpice.Shared.NgSpiceCommandError:
@@ -311,7 +318,7 @@ def main():
             if display.alive:
                 point_a, point_b = display.anode_point.common.temp, display.cathode_point.common.temp
                 if point_a in node_analysis:
-                    if 2 >= float(node_analysis[point_a]) >= 1.5 and point_b == circuit.gnd:
+                    if 2 >= float(node_analysis[point_a]) >= 1.2 and point_b == circuit.gnd:
                         display.state = 1
                     else:
                         if float(node_analysis[point_a]) > 2:
@@ -321,7 +328,7 @@ def main():
                                            "Please replace it and use a resistor to limit the current."
                                 display.state = 0
                             elif point_b in node_analysis:
-                                if 2 >= (float(node_analysis[point_a]) - float(node_analysis[point_b])) >= 1.5:
+                                if 2 >= (float(node_analysis[point_a]) - float(node_analysis[point_b])) >= 1.2:
                                     display.state = 1
                                 else:
                                     if (float(node_analysis[point_a]) - float(node_analysis[point_b])) > 2:
@@ -331,13 +338,27 @@ def main():
                                     display.state = 0
                             else:
                                 display.state = 0
-                        else:
+                        elif float(node_analysis[point_a]) < 1.2:
                             display.state = 0
+                        else:
+                            if point_b in goes_to_gnd:
+                                display.state = 1
+                            else:
+                                display.state = 0
                 else:
                     display.state = 0
             else:
                 warning += "An LED has received too much voltage/current and has died " \
                            "(indicated by an X on the LED). Please replace it and use a resistor to limit the current."
+
+        # Obliterate stupid memory leak
+        if len(circuit.elements):
+            try:
+                ngspice = simulator.factory(circuit).ngspice
+                ngspice.remove_circuit()
+                ngspice.destroy()
+            except PySpice.Spice.NgSpice.Shared.NgSpiceCommandError:
+                pass
 
         # Check if the project was saved
         saved = "" if project.saved[0] else "*"
@@ -364,10 +385,10 @@ def main():
                         project.saved = (True, selected_file)
                         selected_file = open(selected_file.name, 'rb')
                         project.load_save_state(selected_file.read())
-                    fps = PROTOSIM_FPS
-                    current_state = PROTOSIM
-                    action_bar_title = action_text_handler.render_shadow(saved + project.display_name)
-                    edit_button.pos = (WIDTH / 2 + action_bar_title[0].get_width() / 2 + 10 + 5, edit_button.pos[1])
+                        fps = PROTOSIM_FPS
+                        current_state = PROTOSIM
+                        action_bar_title = action_text_handler.render_shadow(saved + project.display_name)
+                        edit_button.pos = (WIDTH / 2 + action_bar_title[0].get_width() / 2 + 10 + 5, edit_button.pos[1])
 
                 if event.type == EXIT_EVENT:
                     pygame.quit()
@@ -398,6 +419,8 @@ def main():
                     if project.in_hand is None and project.incomplete_wire is None:
                         if len(ENV.undo_states):
                             ENV.redo_states.append(project.make_save_state())
+                            if len(ENV.redo_states) > 10:
+                                ENV.redo_states.pop(0)
                             project.load_save_state(ENV.undo_states[-1])
                             ENV.undo_states.pop()
                             action_bar_title = action_text_handler.render_shadow(saved + project.display_name)
@@ -408,6 +431,8 @@ def main():
                     if project.in_hand is None and project.incomplete_wire is None:
                         if len(ENV.redo_states):
                             ENV.undo_states.append(project.make_save_state())
+                            if len(ENV.undo_states) > 10:
+                                ENV.undo_states.pop(0)
                             project.load_save_state(ENV.redo_states[-1])
                             ENV.redo_states.pop()
                             action_bar_title = action_text_handler.render_shadow(saved + project.display_name)
