@@ -276,9 +276,9 @@ def main():
             if wire.resistance != 0:
                 circuit.R(index, wire.point_a.common.temp, wire.point_b.common.temp, wire.resistance)
                 if wire.point_a.common.temp == "gnd":
-                    goes_to_gnd.append(wire.point_a.common.temp)
-                if wire.point_b.common.temp == "gnd":
                     goes_to_gnd.append(wire.point_b.common.temp)
+                if wire.point_b.common.temp == "gnd":
+                    goes_to_gnd.append(wire.point_a.common.temp)
 
         # Create voltage sources in virtual circuit
         for index, supply in enumerate(supplies):
@@ -291,6 +291,7 @@ def main():
                 if isinstance(plugin_object, IntegratedCircuit) and not isinstance(plugin_object, Switch):
                     name, raw, nodes = plugin_object.name, plugin_object.raw_spice, plugin_object.spice_nodes
                     pins_to_nodes = [i.temp for i in plugin_object.pins_to_nodes.values()]
+                    print(pins_to_nodes)
                     circuit.subcircuit(ICSpiceSubCircuit(f'{plugin_object.name}-{index}{jndex}', raw, nodes))
                     circuit.X(f'{index}{jndex}', f'{plugin_object.name}-{index}{jndex}', *pins_to_nodes)
                 if isinstance(plugin_object, LED):

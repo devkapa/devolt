@@ -385,7 +385,7 @@ class Breadboard(Part):
             else:
                 plugin_pos = (plugin_rect.centerx - plugin_size[0]/2, plugin_rect.centery - plugin_size[1]/2)
             surface.blit(plugin_surf, plugin_pos)
-            if not len(self.env.query_disable) or plugin_rect in self.env.query_disable:
+            if not len(self.env.query_disable) or self.env.query_disable == [plugin_rect]:
                 scaled_topleft = tuple(map(lambda i, j, k: (i*j)+k, plugin_pos, scale, real_pos))
                 plugin_surf_rect = plugin_surf.get_rect(topleft=scaled_topleft)
                 plugin_surf_rect.w *= scale[0]

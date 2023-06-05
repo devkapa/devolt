@@ -1,11 +1,12 @@
 import math
 import pickle
+import time
 
 import pygame
 from operator import sub, mul
 from pathlib import Path
 
-from logic.math import Vector
+from logic.vectormath import Vector
 from ui.colours import *
 from ui.text import TextHandler
 from tkinter import Tk, StringVar, OptionMenu, Button
@@ -49,6 +50,7 @@ class Project:
         self.colour_text = self.wire_colour_handler.render("Select wire colour", colour=COL_BLACK)
         self.resist_text = self.wire_colour_handler.render("Change resistance", colour=COL_BLACK)
         self.saved = (True, None)
+        self.cached = {}
 
     def shift(self, x, y):
         self.offset_x += x
@@ -81,6 +83,7 @@ class Project:
         self.point_hovered = None
         self.incomplete_wire = None
         self.saved = (True, None)
+        self.cached.clear()
         self.env.reset()
 
     def change_made(self):
@@ -133,6 +136,7 @@ class Project:
         point_after_zoom = (mouse[0]/self.zoom, mouse[1]/self.zoom)
         delta = tuple(map(lambda i, j: math.floor((i - j)*self.zoom), point_after_zoom, point_before_zoom))
         self.shift(*delta)
+        self.cached.clear()
 
     def set_size(self, width=None, height=None):
         self.width = width if width is not None else self.width
@@ -233,17 +237,25 @@ class Project:
             pygame.draw.line(win, COL_SIM_GRIDLINES, start_coord, end_coord)
             current_line += self.zoom
 
-    def draw_scaled_big(self, win, element, coord, colour=(255, 255, 255, 255), led_only=False):
-        real_element_pos = tuple(map(sum, zip(self.pos, self.convert_point(coord))))
+    def out_of_bounds(self, point):
+        if point[0] < 0 or point[0] > self.width:
+            return True
+        if point[1] < 0 or point[1] > self.height:
+            return True
+        return False
+
+    def draw_scaled_big(self, win, element, coord, draw, colour=(255, 255, 255, 255), led_only=False):
         size = (element.size[0] * self.zoom, element.size[1] * self.zoom)
         scale = (size[0] / element.texture.get_width(), size[1] / element.texture.get_height())
+        real_element_pos = tuple(map(sum, zip(self.pos, self.convert_point(coord))))
         if led_only:
             element_surf, rect_hovered = element.surface_led(), None
         else:
             element_surf, rect_hovered = element.surface(real_element_pos, scale)
-        surf = pygame.transform.scale(element_surf, size)
-        surf.fill(colour, None, pygame.BLEND_RGBA_MULT)
-        win.blit(surf, self.convert_point(coord))
+        if draw:
+            surf = pygame.transform.scale(element_surf, size)
+            surf.fill(colour, None, pygame.BLEND_RGBA_MULT)
+            win.blit(surf, self.convert_point(coord))
         return scale, coord, rect_hovered, self.convert_point(coord)
 
     def surface(self):
@@ -257,11 +269,26 @@ class Project:
         temp_positions = {}
         temp_hovered = None
 
+        occupier_coord_parent = {}
+
+        for coord in self.boards:
+            element = self.boards[coord]
+            if isinstance(element, Occupier):
+                if not self.boards[element.parent_coord] in occupier_coord_parent:
+                    occupier_coord_parent[self.boards[element.parent_coord]] = []
+                occupier_coord_parent[self.boards[element.parent_coord]].append(coord)
+
         for coord in self.boards:
             element = self.boards[coord]
             if isinstance(element, Occupier):
                 continue
-            scale, coord, rect_hovered, real_element_pos = self.draw_scaled_big(self.win, element, coord)
+            draw = True
+            if self.out_of_bounds(self.convert_point(coord)):
+                draw = False
+                for occupier in occupier_coord_parent[element]:
+                    if not self.out_of_bounds(self.convert_point(occupier)):
+                        draw = True
+            scale, coord, rect_hovered, real_element_pos = self.draw_scaled_big(self.win, element, coord, draw)
             temp_positions[element] = (scale, coord, real_element_pos)
             if rect_hovered is not None:
                 temp_hovered = rect_hovered
@@ -333,7 +360,7 @@ class Project:
                     colour = (200, 0, 0, 128)
                 else:
                     colour = (255, 255, 255, 128)
-                scale, coord, _, real = self.draw_scaled_big(self.win, self.in_hand, point, colour=colour)
+                scale, coord, _, real = self.draw_scaled_big(self.win, self.in_hand, point, True, colour=colour)
                 temp_positions[self.in_hand] = (scale, coord, real)
 
         colour_selection = []
@@ -430,6 +457,7 @@ class Project:
                 colour_selection.append(resistance_change)
                 real = resistance_change.copy()
                 real.topleft = tuple(map(sum, zip(resistance_change.topleft, self.pos)))
+                print(self.env.query_disable)
                 if real.collidepoint(pygame.mouse.get_pos()):
                     if resistance_change not in self.env.query_disable:
                         self.env.query_disable.append(resistance_change)
@@ -469,7 +497,7 @@ class Project:
                     cathode_point = plugin_obj.cathode_point.rect.center
                     cathode_point = tuple(map(lambda i, j, k: (i * j) + k, cathode_point, parent_scale, parent_real))
                     pygame.draw.line(self.win, COL_IC_PIN, anode_point, cathode_point, width=4)
-            self.draw_scaled_big(self.win, element, coord, led_only=True)
+            self.draw_scaled_big(self.win, element, coord, True, led_only=True)
 
         if len(colour_selection):
             for index, rect in enumerate(colour_selection):
