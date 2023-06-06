@@ -457,7 +457,6 @@ class Project:
                 colour_selection.append(resistance_change)
                 real = resistance_change.copy()
                 real.topleft = tuple(map(sum, zip(resistance_change.topleft, self.pos)))
-                print(self.env.query_disable)
                 if real.collidepoint(pygame.mouse.get_pos()):
                     if resistance_change not in self.env.query_disable:
                         self.env.query_disable.append(resistance_change)

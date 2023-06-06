@@ -412,9 +412,10 @@ class Breadboard(Part):
             surface_rect.w *= scale[0]
             surface_rect.h *= scale[1]
             surface_rect.topleft = real_pos
-            if surface_rect.collidepoint(pygame.mouse.get_pos()):
-                for rect_group in [self.main_board_rects, self.pr_rects]:
-                    for coord in rect_group:
+            for rect_group in [self.main_board_rects, self.pr_rects]:
+                for coord in rect_group:
+                    pygame.draw.circle(surface, COL_BREADBOARD_HOLE, rect_group[coord][0].center, self.radius)
+                    if surface_rect.collidepoint(pygame.mouse.get_pos()):
                         r = rect_group[coord][0].copy()
                         real_r_pos = tuple(map(sum, zip(real_pos, (r.x * scale[0], r.y * scale[1]))))
                         r.w *= scale[0]
@@ -423,12 +424,12 @@ class Breadboard(Part):
                         if r.collidepoint(pygame.mouse.get_pos()):
                             rect_hovered = rect_group[coord][2]
                             pygame.draw.rect(surface, COL_BLACK, rect_group[coord][0])
+            if surface_rect.collidepoint(pygame.mouse.get_pos()):
                 pygame.draw.rect(surface, COL_SELECTED, self.texture.get_rect(), width=math.floor(2 / scale[0]))
                 if pygame.mouse.get_pressed()[0] and rect_hovered is None and not incomplete_wire:
                     self.env.selected = self
         if self.env.selected == self:
             pygame.draw.rect(surface, COL_SELECTED, self.texture.get_rect(), width=math.floor(4/scale[0]))
-        self.cached_surface = surface
         return surface, rect_hovered
 
 

@@ -243,10 +243,10 @@ def main():
         # Unionise wire sets to create common nodes in virtual circuit
         connected = []
         for wire in project.wires:
-            if wire.resistance != 0:
-                continue
             a = wire.point_a.common
             b = wire.point_b.common
+            if wire.resistance != 0:
+                continue
             connected.append([a, b])
 
         for board in boards:
@@ -272,14 +272,6 @@ def main():
         displays = []
         goes_to_gnd = []
 
-        for index, wire in enumerate(project.wires):
-            if wire.resistance != 0:
-                circuit.R(index, wire.point_a.common.temp, wire.point_b.common.temp, wire.resistance)
-                if wire.point_a.common.temp == "gnd":
-                    goes_to_gnd.append(wire.point_b.common.temp)
-                if wire.point_b.common.temp == "gnd":
-                    goes_to_gnd.append(wire.point_a.common.temp)
-
         # Create voltage sources in virtual circuit
         for index, supply in enumerate(supplies):
             circuit.V(index, supply.points[0].common.temp, supply.points[1].common.temp, supply.voltage)
@@ -291,7 +283,6 @@ def main():
                 if isinstance(plugin_object, IntegratedCircuit) and not isinstance(plugin_object, Switch):
                     name, raw, nodes = plugin_object.name, plugin_object.raw_spice, plugin_object.spice_nodes
                     pins_to_nodes = [i.temp for i in plugin_object.pins_to_nodes.values()]
-                    print(pins_to_nodes)
                     circuit.subcircuit(ICSpiceSubCircuit(f'{plugin_object.name}-{index}{jndex}', raw, nodes))
                     circuit.X(f'{index}{jndex}', f'{plugin_object.name}-{index}{jndex}', *pins_to_nodes)
                 if isinstance(plugin_object, LED):
@@ -299,6 +290,14 @@ def main():
                         point_a, point_b = plugin_object.anode_point.common.temp, plugin_object.cathode_point.common.temp
                         circuit.Diode(f'{index}{jndex}', point_a, point_b, model='LED')
                         displays.append(plugin_object)
+
+        for index, wire in enumerate(project.wires):
+            if wire.resistance != 0:
+                circuit.R(index, wire.point_a.common.temp, wire.point_b.common.temp, int(wire.resistance))
+                if wire.point_a.common.temp == "gnd":
+                    goes_to_gnd.append(wire.point_b.common.temp)
+                if wire.point_b.common.temp == "gnd":
+                    goes_to_gnd.append(wire.point_a.common.temp)
 
         simulator = circuit.simulator()
 
@@ -325,8 +324,6 @@ def main():
                         if float(node_analysis[point_a]) > 2:
                             if point_b == circuit.gnd:
                                 display.alive = False
-                                warning += "An LED has received too much current and has died. " \
-                                           "Please replace it and use a resistor to limit the current."
                                 display.state = 0
                             elif point_b in node_analysis:
                                 if 2 >= (float(node_analysis[point_a]) - float(node_analysis[point_b])) >= 1.2:
@@ -334,8 +331,6 @@ def main():
                                 else:
                                     if (float(node_analysis[point_a]) - float(node_analysis[point_b])) > 2:
                                         display.alive = False
-                                        warning += "An LED has received too much voltage/current and has died. " \
-                                                   "Please replace it and use a resistor to limit the current."
                                     display.state = 0
                             else:
                                 display.state = 0
@@ -549,7 +544,18 @@ def main():
                                         ENV.query_disable.remove(project.in_hand)
                                     project.in_hand = None
                                     project.change_made()
+
                 if event.type == pygame.KEYDOWN:
+
+                    keys_pressed = pygame.key.get_pressed()
+
+                    if keys_pressed[pygame.K_LCTRL]:
+                        if event.key == pygame.K_z:
+                            pygame.event.post(pygame.event.Event(UNDO_EVENT))
+                        if event.key == pygame.K_y:
+                            pygame.event.post(pygame.event.Event(REDO_EVENT))
+                        if event.key == pygame.K_s:
+                            pygame.event.post(pygame.event.Event(SAVE_EVENT))
 
                     if event.key == pygame.K_ESCAPE:
 
@@ -615,16 +621,6 @@ def main():
                 for label in warning_label:
                     win.blit(label, (WIDTH - 300 + 20, ACTION_BAR_HEIGHT + 20 + acc))
                     acc += label.get_height() + 5
-
-            keys_pressed = pygame.key.get_pressed()
-
-            if keys_pressed[pygame.K_LCTRL]:
-                if keys_pressed[pygame.K_z]:
-                    pygame.event.post(pygame.event.Event(UNDO_EVENT))
-                if keys_pressed[pygame.K_y]:
-                    pygame.event.post(pygame.event.Event(REDO_EVENT))
-                if keys_pressed[pygame.K_s]:
-                    pygame.event.post(pygame.event.Event(SAVE_EVENT))
 
             if not sim_manager.hovered:
                 if pygame.mouse.get_cursor() != pygame.SYSTEM_CURSOR_ARROW:
