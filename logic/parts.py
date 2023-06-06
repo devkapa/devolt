@@ -1,6 +1,7 @@
 import math
 import os.path
 import textwrap
+import time
 
 import pygame.image
 import xml.etree.ElementTree as Et
@@ -250,6 +251,7 @@ class Breadboard(Part):
         self.main_board_rects, self.main_rails = self.create_rects(main, "main")
         self.pr_rects, self.pr_rails = self.create_rects(power_rail, "power")
         self.plain_surface = pygame.Surface(self.texture.get_size())
+        self.drawing_surface = self.texture.copy()
 
     def __getstate__(self):
         """Return state values to be pickled."""
@@ -373,7 +375,8 @@ class Breadboard(Part):
 
     def surface(self, real_pos, scale):
         rect_hovered = None
-        surface = self.texture.copy()
+        self.texture.blit(self.drawing_surface, (0, 0))
+        surface = self.texture
         incomplete_wire = any(isinstance(x, BreadboardPoint) or isinstance(x, PluginPart) for x in self.env.query_disable)
         for plugin in self.plugins:
             plugin_obj = self.plugins[plugin]
@@ -425,11 +428,11 @@ class Breadboard(Part):
                             rect_hovered = rect_group[coord][2]
                             pygame.draw.rect(surface, COL_BLACK, rect_group[coord][0])
             if surface_rect.collidepoint(pygame.mouse.get_pos()):
-                pygame.draw.rect(surface, COL_SELECTED, self.texture.get_rect(), width=math.floor(2 / scale[0]))
+                pygame.draw.rect(surface, COL_SELECTED, self.texture.get_rect(), width=2)
                 if pygame.mouse.get_pressed()[0] and rect_hovered is None and not incomplete_wire:
                     self.env.selected = self
         if self.env.selected == self:
-            pygame.draw.rect(surface, COL_SELECTED, self.texture.get_rect(), width=math.floor(4/scale[0]))
+            pygame.draw.rect(surface, COL_SELECTED, self.texture.get_rect(), width=4)
         return surface, rect_hovered
 
 

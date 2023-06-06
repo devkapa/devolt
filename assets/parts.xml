@@ -9,21 +9,21 @@
         <texture>bb-830.png</texture>
         <boardConfig>
             <size>13x5</size>
-            <inchTenth>75</inchTenth>
-            <radius>25</radius>
+            <inchTenth>19</inchTenth>
+            <radius>6</radius>
             <mainBoard rule="SEGMENT,REPETITION,COLUMN">
-                <startCoord>113,375</startCoord>
-                <segmentGap>525</segmentGap>
+                <startCoord>28,94</startCoord>
+                <segmentGap>131</segmentGap>
                 <perSegmentColumns>63</perSegmentColumns>
                 <perColumnRows>5</perColumnRows>
                 <perSegmentRepetition gap="0">1</perSegmentRepetition>
             </mainBoard>
             <powerRails rule="SEGMENT,ROW">
-                <startCoord>261,75</startCoord>
-                <segmentGap>1350</segmentGap>
+                <startCoord>65,19</startCoord>
+                <segmentGap>338</segmentGap>
                 <perSegmentColumns>5</perSegmentColumns>
                 <perColumnRows>2</perColumnRows>
-                <perSegmentRepetition gap="451">10</perSegmentRepetition>
+                <perSegmentRepetition gap="113">10</perSegmentRepetition>
             </powerRails>
         </boardConfig>
     </part>
@@ -35,21 +35,21 @@
         <texture>bb-400.png</texture>
         <boardConfig>
             <size>7x5</size>
-            <inchTenth>67</inchTenth>
-            <radius>24</radius>
+            <inchTenth>17</inchTenth>
+            <radius>6</radius>
             <mainBoard rule="SEGMENT,REPETITION,COLUMN">
-                <startCoord>130,358</startCoord>
-                <segmentGap>485</segmentGap>
+                <startCoord>33,90</startCoord>
+                <segmentGap>121</segmentGap>
                 <perSegmentColumns>30</perSegmentColumns>
                 <perColumnRows>5</perColumnRows>
                 <perSegmentRepetition gap="0">1</perSegmentRepetition>
             </mainBoard>
             <powerRails rule="SEGMENT,ROW">
-                <startCoord>132,92</startCoord>
-                <segmentGap>1207</segmentGap>
+                <startCoord>33,23</startCoord>
+                <segmentGap>302</segmentGap>
                 <perSegmentColumns>5</perSegmentColumns>
                 <perColumnRows>2</perColumnRows>
-                <perSegmentRepetition gap="420">5</perSegmentRepetition>
+                <perSegmentRepetition gap="105">5</perSegmentRepetition>
             </powerRails>
         </boardConfig>
     </part>
@@ -61,11 +61,11 @@
         <texture>bb-830-rl.png</texture>
         <boardConfig>
             <size>13x3</size>
-            <inchTenth>75</inchTenth>
-            <radius>25</radius>
+            <inchTenth>19</inchTenth>
+            <radius>6</radius>
             <mainBoard rule="SEGMENT,REPETITION,COLUMN">
-                <startCoord>113,154</startCoord>
-                <segmentGap>525</segmentGap>
+                <startCoord>28,39</startCoord>
+                <segmentGap>131</segmentGap>
                 <perSegmentColumns>63</perSegmentColumns>
                 <perColumnRows>5</perColumnRows>
                 <perSegmentRepetition gap="0">1</perSegmentRepetition>
@@ -80,11 +80,11 @@
         <texture>bb-400-rl.png</texture>
         <boardConfig>
             <size>7x3</size>
-            <inchTenth>67</inchTenth>
-            <radius>24</radius>
+            <inchTenth>17</inchTenth>
+            <radius>6</radius>
             <mainBoard rule="SEGMENT,REPETITION,COLUMN">
-                <startCoord>131,101</startCoord>
-                <segmentGap>485</segmentGap>
+                <startCoord>32,25</startCoord>
+                <segmentGap>121</segmentGap>
                 <perSegmentColumns>30</perSegmentColumns>
                 <perColumnRows>5</perColumnRows>
                 <perSegmentRepetition gap="0">1</perSegmentRepetition>
