@@ -12,7 +12,7 @@
             <inchTenth>19</inchTenth>
             <radius>6</radius>
             <mainBoard rule="SEGMENT,REPETITION,COLUMN">
-                <startCoord>28,94</startCoord>
+                <startCoord>21,94</startCoord>
                 <segmentGap>131</segmentGap>
                 <perSegmentColumns>63</perSegmentColumns>
                 <perColumnRows>5</perColumnRows>

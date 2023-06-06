@@ -556,6 +556,8 @@ def main():
                             pygame.event.post(pygame.event.Event(REDO_EVENT))
                         if event.key == pygame.K_s:
                             pygame.event.post(pygame.event.Event(SAVE_EVENT))
+                        if event.key == pygame.K_r:
+                            project.offset_x, project.offset_y = 0, 0
 
                     if event.key == pygame.K_ESCAPE:
 
