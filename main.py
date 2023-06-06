@@ -685,7 +685,7 @@ def main():
             # If there is a pending warning, show it
             if warning != "":
                 warning_rect = pygame.Rect(WIDTH - 300, ACTION_BAR_HEIGHT, 300, 0)
-                warning_label, height = version_handler.render_multiline(warning, width=warning_rect.w - 20)
+                warning_label, height = version_handler.render_multiline(warning, width=warning_rect.w - 20, colour=COL_BLACK)
                 warning_rect.h = height + 40
                 pygame.draw.rect(win, COL_WARNING, warning_rect)
                 acc = 0
