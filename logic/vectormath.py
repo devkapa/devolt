@@ -1,4 +1,7 @@
 class Vector:
+    """The Vector structure is a quantity that depicts a direction with magnitude
+    It is used to calculate perpendicular lines and draw rotated rectangles"""
+
     def __init__(self, x, y):
         self.x = x
         self.y = y

@@ -28,7 +28,7 @@ from logic.electronics import Wire, ICSpiceSubCircuit, Sink, Node
 from logic.parts import PartManager, Part, parse, PowerSupply, Breadboard, IntegratedCircuit, LED, PluginPart, Switch
 
 # Versioning
-version = "0.0.1"
+version = "1.0.0"
 
 # PySpice Logger
 setup_logging(logging_level='INFO')
@@ -66,7 +66,12 @@ PROJECT_CHANGE_EVENT = pygame.USEREVENT + 10
 
 
 def draw_homepage(win, homepage_title, homepage_version, visualiser, buttons):
+    """Draw the home page of de:volt"""
+
+    # DVD Circuit Graphic
     draw_circuit_graphic(win, visualiser)
+
+    # Title / Version
     title_text, title_shadow = homepage_title
     title_coords = ((WIDTH/2) - title_text.get_width()/2, HEIGHT/2 - 140)
     win.blit(title_shadow, tuple(x + 2 for x in title_coords))
@@ -76,39 +81,59 @@ def draw_homepage(win, homepage_title, homepage_version, visualiser, buttons):
     version_y = HEIGHT/2 + title_text.get_height() - 150
     win.blit(version_shadow, tuple(x + 1 for x in (version_x, version_y)))
     win.blit(version_text, (version_x, version_y))
+
+    # Buttons
     buttons.draw(win)
 
 
 def draw_circuit_graphic(win, visualiser):
+    """Draw the DVD-like circuit visualiser"""
     win.fill(COL_HOME_BKG)
     visualiser.draw(win)
 
 
 def draw_sim(win, sidebar_width, project, buttons, title, sidebar, show_datasheet):
+    """Draw the simulator space"""
+
+    # Background
     win.fill(COL_HOME_BKG)
+
+    # Set the project size if sidebar is open
     if project.width != WIDTH-sidebar_width:
         project.set_size(width=WIDTH-sidebar_width)
+
+    # Draw action bar text elements
     action_text, action_shadow = title
     action_coords = (WIDTH/2 - action_text.get_width()/2, ACTION_BAR_HEIGHT/2 - action_text.get_height()/2)
     win.blit(action_shadow, tuple(x + 1 for x in action_coords))
     win.blit(action_text, action_coords)
+
+    # Draw project
     project.pos = (sidebar_width, ACTION_BAR_HEIGHT)
     win.blit(project.surface(), project.pos)
+
+    # Draw action bar buttons
     buttons.draw(win)
+
+    # Draw datasheet
     if show_datasheet[0]:
         win.blit(show_datasheet[1], project.pos)
         pygame.draw.rect(win, COL_BLACK, show_datasheet[1].get_rect(topleft=project.pos), width=2)
+
+    # Draw sidebar
     if sidebar_width > 0:
         win.blit(sidebar.surface(), (0, ACTION_BAR_HEIGHT))
         sidebar.listen()
 
 
 def open_dev():
+    """Open a window to prompt the user to select a .dev file"""
     filetypes = (("de:volt Project", "*.dev"),)
     return fd.askopenfile(title="Open de:volt Project", initialdir=ENV.get_main_path(), filetypes=filetypes)
 
 
 def save_dev(project):
+    """Open a window to prompt the user to save a .dev file"""
     filetypes = (("de:volt Project", "*.dev"),)
     file = fd.asksaveasfile(title="Save de:volt Project", initialdir=ENV.get_main_path(), filetypes=filetypes,
                             defaultextension=".dev", initialfile=project.display_name)
@@ -116,6 +141,7 @@ def save_dev(project):
 
 
 def unionise_nodes(nodes):
+    """Takes a list of lists and returns a list with all common elements amongst original lists paired"""
     out = []
     while len(nodes) > 0:
         first, *rest = nodes
@@ -215,7 +241,10 @@ def main():
     sim_elements = [project, sidebar, undo_button, redo_button, save_button, home_button, menu_button, edit_button]
     sim_manager = ElementManager(sim_elements, version_handler)
 
+    # Global environment
     pygame.env = ENV
+
+    # Store if the datasheet should be shown
     show_datasheet = (False, None)
 
     while running:
@@ -249,6 +278,7 @@ def main():
                 continue
             connected.append([a, b])
 
+        # Connect switch nodes together
         for board in boards:
             for plugin in board.plugins:
                 plugin_object = board.plugins[plugin]
@@ -264,6 +294,7 @@ def main():
 
         connected = unionise_nodes(connected)
 
+        # Give all unionised nodes a new unique identifier
         for common_node in connected:
             new_uuid = str(uuid.uuid4()) if not len([i for i in common_node if isinstance(i, Sink)]) else "gnd"
             for child_node in common_node:
@@ -291,6 +322,7 @@ def main():
                         circuit.Diode(f'{index}{jndex}', point_a, point_b, model='LED')
                         displays.append(plugin_object)
 
+        # Create resistors in virtual circuit
         for index, wire in enumerate(project.wires):
             if wire.resistance != 0:
                 circuit.R(index, wire.point_a.common.temp, wire.point_b.common.temp, int(wire.resistance))
@@ -299,6 +331,7 @@ def main():
                 if wire.point_b.common.temp == "gnd":
                     goes_to_gnd.append(wire.point_a.common.temp)
 
+        # Simulate the circuit
         simulator = circuit.simulator()
 
         # If there are elements present in the circuit, evaluate their logic state
@@ -314,6 +347,8 @@ def main():
                        " not in use! You may have also shorted your power supply."
             node_analysis = {}
 
+        # For every LED in the project, evaluate if it is receiving the correct power
+        # If so, turn it on or kill it
         for display in displays:
             if display.alive:
                 point_a, point_b = display.anode_point.common.temp, display.cathode_point.common.temp
@@ -369,6 +404,7 @@ def main():
                 pygame.quit()
                 sys.exit()
 
+            # Listen for button events on the homepage
             if current_state == HOME:
 
                 if event.type == NEW_PROJECT_EVENT:
@@ -390,12 +426,15 @@ def main():
                     pygame.quit()
                     sys.exit()
 
+            # Listen for button events in the simulator
             if current_state == PROTOSIM:
 
+                # Change made in the project
                 if event.type == PROJECT_CHANGE_EVENT:
                     action_bar_title = action_text_handler.render_shadow(saved + project.display_name)
                     edit_button.pos = (WIDTH / 2 + action_bar_title[0].get_width() / 2 + 10 + 5, edit_button.pos[1])
 
+                # Project is being zoomed or list is being scrolled
                 if event.type == pygame.MOUSEWHEEL:
                     if event.y:
                         mouse_pos = pygame.mouse.get_pos()
@@ -405,12 +444,14 @@ def main():
                         if element_list.surface().get_rect(topleft=element_list.real_pos).collidepoint(mouse_pos):
                             element_list.scroll(-event.y*20)
 
+                # Menu is opened/closed
                 if event.type == MENU_EVENT:
                     if sidebar_width > 0:
                         sidebar_width = 0
                     else:
                         sidebar_width = SIDEBAR_WIDTH
 
+                # The user wants to undo
                 if event.type == UNDO_EVENT:
                     if project.in_hand is None and project.incomplete_wire is None:
                         if len(ENV.undo_states):
@@ -423,6 +464,7 @@ def main():
                             edit_button.pos = (WIDTH / 2 + action_bar_title[0].get_width() / 2 + 10 + 5, edit_button.pos[1])
                             continue
 
+                # The user wants to redo
                 if event.type == REDO_EVENT:
                     if project.in_hand is None and project.incomplete_wire is None:
                         if len(ENV.redo_states):
@@ -435,6 +477,7 @@ def main():
                             edit_button.pos = (WIDTH / 2 + action_bar_title[0].get_width() / 2 + 10 + 5, edit_button.pos[1])
                             continue
 
+                # The name of the file is queued to be edited
                 if event.type == EDIT_EVENT:
                     new_name = sd.askstring("Edit Project Name", "Enter your new project name below.",
                                             initialvalue=project.display_name)
@@ -448,6 +491,7 @@ def main():
                     else:
                         mb.showerror("Error", "You did not provide a name.")
 
+                # Return to the homepage
                 if event.type == HOME_EVENT:
                     if not project.saved[0]:
                         save = mb.askquestion("Unsaved Warning", "You have unsaved work! "
@@ -465,6 +509,7 @@ def main():
                         fps = HOME_FPS
                         continue
 
+                # Save the current project
                 if event.type == SAVE_EVENT:
                     if project.saved[1] is not None and Path(project.saved[1].name).name == project.display_name:
                         file = project.saved[1]
@@ -477,13 +522,22 @@ def main():
                     action_bar_title = action_text_handler.render_shadow(saved + project.display_name)
                     edit_button.pos = (WIDTH / 2 + action_bar_title[0].get_width() / 2 + 10 + 5, edit_button.pos[1])
 
+                # Check if the mouse button was depressed but not lifted
                 if event.type == pygame.MOUSEBUTTONDOWN:
+
                     mouse_button_down = True
+
                     if pygame.mouse.get_pressed()[0]:
+
                         if project.in_hand is None:
+
                             if project.point_hovered is not None:
+
                                 mouse = pygame.mouse.get_pos()
+
+                                # If a wire was initiated, place it
                                 if project.last_surface.get_rect(topleft=project.pos).collidepoint(mouse):
+
                                     if project.incomplete_wire is None:
                                         project.incomplete_wire = project.point_hovered
                                         ENV.selected = None
@@ -495,7 +549,10 @@ def main():
                                                 ENV.query_disable.remove(project.incomplete_wire)
                                             project.incomplete_wire = None
                                             project.point_hovered = None
+
                         else:
+
+                            # Check if an LED was queued to be placed
                             if isinstance(project.in_hand, LED):
                                 if project.point_hovered is not None:
                                     if not project.in_hand.cathode_connecting:
@@ -509,6 +566,8 @@ def main():
                                         if project.in_hand in ENV.query_disable:
                                             ENV.query_disable.remove(project.in_hand)
                                         project.in_hand = None
+
+                            # Check if an Integrated Circuit was placed
                             if isinstance(project.in_hand, IntegratedCircuit):
                                 if project.point_hovered is not None:
                                     parent = project.point_hovered.parent
@@ -521,6 +580,8 @@ def main():
                                         if project.in_hand in ENV.query_disable:
                                             ENV.query_disable.remove(project.in_hand)
                                         project.in_hand = None
+
+                            # Check if a large component was placed
                             if isinstance(project.in_hand, Breadboard) or isinstance(project.in_hand, PowerSupply):
                                 relative_mouse = project.relative_mouse()
                                 point = (math.floor(relative_mouse[0] / project.zoom), math.floor(relative_mouse[1] / project.zoom))
@@ -533,6 +594,7 @@ def main():
                                             allowed = False
                                             break
                                         occupying_points.append(occupying_point)
+                                # If there are no collisions, place it
                                 if allowed:
                                     project.boards[point] = project.in_hand
                                     occupier = Occupier(point)
@@ -549,6 +611,7 @@ def main():
 
                     keys_pressed = pygame.key.get_pressed()
 
+                    # Undo, redo, save and reset key-binds
                     if keys_pressed[pygame.K_LCTRL]:
                         if event.key == pygame.K_z:
                             pygame.event.post(pygame.event.Event(UNDO_EVENT))
@@ -559,6 +622,7 @@ def main():
                         if event.key == pygame.K_r:
                             project.offset_x, project.offset_y = 0, 0
 
+                    # Force remove any restrictions if ESCAPE is pressed
                     if event.key == pygame.K_ESCAPE:
 
                         if project.in_hand is not None:
@@ -572,6 +636,7 @@ def main():
 
                         ENV.query_disable.clear()
 
+                    # Show a datasheet if an Integrated Circuit was selected
                     if event.key == pygame.K_d:
 
                         if not show_datasheet[0]:
@@ -582,6 +647,7 @@ def main():
                         else:
                             show_datasheet = (False, None)
 
+                    # Delete a component if it was selected
                     if event.key == pygame.K_DELETE:
                         if ENV.selected is not None:
                             if isinstance(ENV.selected, Breadboard):
@@ -606,6 +672,7 @@ def main():
             pygame.display.set_caption(f"Home • de:volt")
             draw_homepage(win, home_title, home_version, visualiser, home_button_manager)
 
+            # Change the cursor back to an arrow
             if not home_button_manager.hovered:
                 if pygame.mouse.get_cursor() != pygame.SYSTEM_CURSOR_ARROW:
                     pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_ARROW)
@@ -614,6 +681,8 @@ def main():
 
             pygame.display.set_caption(f"{saved}{project.display_name} • de:volt")
             draw_sim(win, sidebar_width, project, sim_manager, action_bar_title, sidebar, show_datasheet)
+
+            # If there is a pending warning, show it
             if warning != "":
                 warning_rect = pygame.Rect(WIDTH - 300, ACTION_BAR_HEIGHT, 300, 0)
                 warning_label, height = version_handler.render_multiline(warning, width=warning_rect.w - 20)
@@ -624,10 +693,12 @@ def main():
                     win.blit(label, (WIDTH - 300 + 20, ACTION_BAR_HEIGHT + 20 + acc))
                     acc += label.get_height() + 5
 
+            # Change the cursor back to an arrow
             if not sim_manager.hovered:
                 if pygame.mouse.get_cursor() != pygame.SYSTEM_CURSOR_ARROW:
                     pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_ARROW)
 
+            # Check if a switch was pressed
             if mouse_button_down and pygame.mouse.get_pressed()[0]:
                 if project.last_surface.get_rect(topleft=project.pos).collidepoint(pygame.mouse.get_pos()):
                     if ENV.selected is not None:

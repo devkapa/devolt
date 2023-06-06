@@ -5,6 +5,9 @@ from ui.colours import *
 
 
 class Node:
+    """The node structure represents any individual conductive material that may be connected to other nodes.
+    Each node has a unique identifier at initialisation, but may have a temporary identifier shared with other nodes
+    that it is connected to."""
 
     instances = weakref.WeakSet()
 
@@ -18,13 +21,8 @@ class Node:
         return list(Node.instances)
 
 
-class Source(Node):
-
-    def __init__(self):
-        super().__init__()
-
-
 class Sink(Node):
+    """A subset of the node which represents the common ground in an electrical circuit."""
 
     def __init__(self):
         super().__init__()
@@ -33,6 +31,8 @@ class Sink(Node):
 
 
 class Wire:
+    """A structure to represent the relationship between two nodes. It also contains the mapping for resistance
+    to 5-band resistor colour coding in case the wire is resistive."""
 
     resistances = {'0': [],
                    '100': [COL_RES_BAND_1_1, COL_RES_BAND_2_0, COL_RES_BAND_3_0, COL_RES_BAND_M_1, COL_TOLERANCE],
@@ -49,6 +49,7 @@ class Wire:
         self.colour = colour
         self.resistance = 0
 
+    # Convert between the float resistance, string representation and colour representation
     def convert(self, x=None, colours=False):
         if x is not None:
             if 'K' in x:
@@ -71,6 +72,7 @@ class Wire:
 
 
 class ICSpiceSubCircuit(SubCircuit):
+    """A SPICE subcircuit for an Integrated Circuit"""
 
     def __init__(self, name, raw, nodes):
         SubCircuit.__init__(self, name, *nodes)

@@ -4,6 +4,8 @@ from ui.colours import *
 
 
 class TextHandler:
+    """The TextHandler structure is used to generate strings of text in the same font and size, but with
+    different visual characteristics such as a shadow or multiline support"""
     
     def __init__(self, env, font, px):
         self.font = pygame.font.Font(os.path.join(env.get_main_path(), 'assets', 'fonts', font), px)

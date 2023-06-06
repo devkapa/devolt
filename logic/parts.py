@@ -1,18 +1,19 @@
 import math
 import os.path
 import textwrap
-import time
 
 import pygame.image
 import xml.etree.ElementTree as Et
 
-from logic.electronics import Node, Source, Sink
+from logic.electronics import Node, Sink
 from collections import namedtuple
 from _elementtree import ParseError
 from ui.interface import List, ListItem
 from ui.colours import *
 from ui.text import TextHandler
 
+
+# Named tuples for readable code
 BoardConfig = namedtuple("BoardConfig", "start_coord segment_gap per_segment_columns per_column_rows "
                                         "per_segment_rep_count per_segment_rep_gap rule")
 Rule = namedtuple("Rule", "segment repetition column row")
@@ -20,6 +21,7 @@ SupplyInfo = namedtuple("SupplyInfo", "pos_rail neg_rail radius")
 Discriminator = namedtuple("Discriminator", "segment rep column row name")
 
 
+# Input an XML element and return a named tuple with extracted information about a breadboard
 def get_board_config(element):
     start_coord = tuple(int(i) for i in element.find("startCoord").text.split(","))
     segment_gap = int(element.find("segmentGap").text)
@@ -34,11 +36,14 @@ def get_board_config(element):
                        per_segment_rep_gap, rule)
 
 
+# Parse the part XML file and create Part objects for each entry
 def parse(xml_path):
     try:
 
+        # Create an object tree of the XML
         parts_xml = Et.parse(xml_path)
 
+        # Get the parent root
         root = parts_xml.getroot()
         parts_tree = root.findall("part")
         boards, ics, electronics = {}, {}, {}
@@ -46,6 +51,7 @@ def parse(xml_path):
         for part in parts_tree:
 
             try:
+                # Get the name, description, name of textures, type and identifier of each element
                 part_name = part.find("name").text
                 part_desc = part.find("desc").text
                 part_picture = part.find("picture").text
@@ -53,6 +59,7 @@ def parse(xml_path):
                 part_type = part.attrib.get("type")
                 part_uid = part.attrib.get("uid")
 
+                # If the part is a board, add it to the boards list
                 if part_type == "board":
                     board_config = part.find("boardConfig")
                     size = board_config.find("size").text
@@ -74,6 +81,7 @@ def parse(xml_path):
 
                     boards[part_uid] = board
 
+                # If the part is a power supply, add it to the electronics list
                 if part_type == "supply":
                     power_config = part.find("powerConfig")
                     size = power_config.find("size").text
@@ -92,6 +100,7 @@ def parse(xml_path):
                         PowerSupply
                     electronics[part_uid] = supply
 
+                # If the part is an IC, add it to the IC list
                 if part_type == "ic":
                     ic_config = part.find("icConfig")
                     dip_count = int(ic_config.find("dipCount").text)
@@ -103,6 +112,7 @@ def parse(xml_path):
                           datasheet), IntegratedCircuit
                     ics[part_uid] = ic
 
+                # If the part is an LED, add it to the electronics list
                 if part_type == "led":
                     led_config = part.find("ledConfig")
                     on_colour = tuple(int(i) for i in led_config.find("onColour").text.split(','))
@@ -112,6 +122,7 @@ def parse(xml_path):
                         LED
                     electronics[part_uid] = led
 
+                # If the part is a switch, add it to the electronics list
                 if part_type == "switch":
                     switch_config = part.find("switchConfig")
                     dip_count = int(switch_config.find("dipCount").text)
@@ -123,8 +134,6 @@ def parse(xml_path):
                            latch, datasheet), Switch
                     electronics[part_uid] = ele
 
-                # TODO: Other part types (resistor, transistor, diode)
-
             except TypeError:
                 continue
 
@@ -135,6 +144,7 @@ def parse(xml_path):
 
 
 class PartManager:
+    """The PartManager structure holds every part in a category, to be used in creating UI Lists"""
 
     def __init__(self, title, desc, parts, project, small_title=None):
         self.title = title
@@ -158,6 +168,8 @@ class PartManager:
 
 
 class Part:
+    """A base class for any part that can be placed in the editor space"""
+
     BOARD_DESC = "Breadboards are plastic holed boards in which electronic components can be inserted and connected " \
                  "with jumper wires for experimenting with circuits. To connect jumper wires, simply click on a " \
                  "breadboard or power supply hole and drag the new wire to your desired point."
@@ -171,6 +183,7 @@ class Part:
                        f"complex circuits that perform specific functions. {' '*120}NOTE: To make a resistor, draw a " \
                        "wire normally, then select it to choose a resistance."
 
+    # Initialising the class with any necessary attributes for any part type
     def __init__(self, name, desc, texture, preview_texture, env):
         path = env.get_main_path()
         self.name = name
@@ -184,6 +197,7 @@ class Part:
 
 
 class PowerSupply(Part):
+    """The Power Supply contains two breadboard-type nodes that represent a positive and negative electrical terminal"""
 
     def __init__(self, name, desc, texture, preview_texture, size, voltage, pos_info, inch_tenth, env):
         super().__init__(name, desc, texture, preview_texture, env)
@@ -198,7 +212,7 @@ class PowerSupply(Part):
         neg_rect_tl = (neg_rail_coord[0] - radius, neg_rail_coord[1] - radius)
         rect_wh = (radius*2, radius*2)
         self.rects = [pygame.Rect(pos_rect_tl, rect_wh), pygame.Rect(neg_rect_tl, rect_wh)]
-        self.points = [BreadboardPoint(self, Discriminator(0, 0, 0, 1, "main"), Source(), self.rects[0]),
+        self.points = [BreadboardPoint(self, Discriminator(0, 0, 0, 1, "main"), Node(), self.rects[0]),
                        BreadboardPoint(self, Discriminator(0, 0, 0, 0, "main"), Sink(), self.rects[1])]
 
     def __getstate__(self):
@@ -210,6 +224,7 @@ class PowerSupply(Part):
         """Restore state from the unpickled state values."""
         self.__init__(*state, pygame.env)
 
+    # Return a surface containing the power supply texture
     def surface(self, real_pos, scale):
         rect_hovered = None
         surface = self.texture.copy()
@@ -238,6 +253,8 @@ class PowerSupply(Part):
 
 
 class Breadboard(Part):
+    """A breadboard structure contains a large array of breadboard points that can be interfaced with to connect
+    electronics together, and place wires onto for prototypical simulation"""
 
     def __init__(self, name, desc, texture, preview_texture, size, inch_tenth, radius, main, power_rail, env, plugins=None):
         super().__init__(name, desc, texture, preview_texture, env)
@@ -263,6 +280,8 @@ class Breadboard(Part):
         self.__init__(*state[:-1], pygame.env, plugins=state[-1])
         self.rejuvenate()
 
+    # For every plugin in the breadboard, update the references such that when loaded from a save state,
+    # the plugin correctly simulates a connection between regenerated breadboard points
     def rejuvenate(self):
         for plugin in self.plugins:
             plugin_obj = self.plugins[plugin]
@@ -285,23 +304,38 @@ class Breadboard(Part):
                 plugin_obj.anode_point = group_1[plugin_obj.anode_point.discriminator][2]
                 plugin_obj.cathode_point = group_2[plugin_obj.cathode_point.discriminator][2]
 
+    # Given a config, generate the correct number of breadboard points which the breadboard should contain
     def create_rects(self, board_config, name):
         if board_config is None:
             return {}, ""
         rects = {}
         rails = []
 
+        # Two segments of a breadboard, separated by DIP support
         for segment in range(2):
+
             segment_y = board_config.start_coord[1] + (segment * board_config.segment_gap)
+
+            # Inline repetitions of a segment
             for rep in range(board_config.per_segment_rep_count):
+
                 rep_x = board_config.start_coord[0] + (rep * board_config.per_segment_rep_gap)
+
+                # Vertical columns of breadboard points
                 for column in range(board_config.per_segment_columns):
+
                     column_x = rep_x + (self.inch_tenth * column)
+
+                    # Horizontal rows of breadboard points
                     for row in range(board_config.per_column_rows):
+
+                        # Calculate the relation rule of the breadboard rail (how are they connected)
                         rail_discrim = (segment if board_config.rule.segment else None,
                                         rep if board_config.rule.repetition else None,
                                         column if board_config.rule.column else None,
                                         row if board_config.rule.row else None)
+
+                        # Check if the rail already exists
                         found = None
                         for rail in rails:
                             if rail.rail_discriminator == rail_discrim:
@@ -309,16 +343,21 @@ class Breadboard(Part):
                         if found is None:
                             found = BreadboardRail(rail_discrim)
                             rails.append(found)
+
+                        # Create a rect and a breadboard point
                         row_y = segment_y + (self.inch_tenth * row)
                         rect_tl = (column_x - (self.inch_tenth / 2), row_y - (self.inch_tenth / 2))
                         rect_wh = (self.inch_tenth, self.inch_tenth)
                         rect = pygame.Rect(rect_tl, rect_wh)
                         discriminator = Discriminator(segment, rep, column, row, name)
                         point = BreadboardPoint(self, discriminator, found, rect)
+
+                        # Store
                         rects[discriminator] = rect, found, point
 
         return rects, rails
 
+    # Calculate the amount of points required by an IC to fit on the breadboard
     def ic_requirements(self, ic_discrim, ic_dips):
         pins_to_nodes = {}
         for i in range(ic_dips):
@@ -330,6 +369,7 @@ class Breadboard(Part):
             pins_to_nodes[i] = self.main_board_rects[discriminator][1]
         return pins_to_nodes
 
+    # Check if an IC will collide with other elements on a breadboard given the coordinate
     def ic_collision(self, ic_discrim, ic_dips):
         requirements = [i.uuid for i in self.ic_requirements(ic_discrim, ic_dips).values()]
         for plugin in self.plugins.values():
@@ -339,6 +379,7 @@ class Breadboard(Part):
                         return True
         return False
 
+    # Check if an IC is allowed to sit on a row of breadboard points given the coordinate
     def ic_allowed(self, ic, point_hovered):
         discriminator = point_hovered.discriminator
         if discriminator.segment == 0:
@@ -350,6 +391,7 @@ class Breadboard(Part):
                     return not col
         return False
 
+    # Convert from a position to a coordinate and scale
     def point_to_coord(self, real_pos, point, scale):
         for rect_group in [self.main_board_rects, self.pr_rects]:
             for coord in rect_group:
@@ -360,6 +402,7 @@ class Breadboard(Part):
                     return real_r_pos
         return 0, 0
 
+    # Return a surface that only contains the LED bulb heads
     def surface_led(self):
         surface = self.plain_surface.copy()
         surface.set_colorkey((0, 0, 0))
@@ -373,21 +416,35 @@ class Breadboard(Part):
                 surface.blit(plugin_surf, plugin_pos)
         return surface
 
+    # Return a surface that contains all plugin parts on the part texture
     def surface(self, real_pos, scale):
+
         rect_hovered = None
+
+        # Prepare the surface
         self.texture.blit(self.drawing_surface, (0, 0))
         surface = self.texture
+
+        # Draw plugins
         incomplete_wire = any(isinstance(x, BreadboardPoint) or isinstance(x, PluginPart) for x in self.env.query_disable)
         for plugin in self.plugins:
+
+            # Prepare plugin surface
             plugin_obj = self.plugins[plugin]
             plugin_rect = plugin.rect
             plugin_surf = plugin_obj.surface(self)[0]
             plugin_size = plugin_surf.get_width(), plugin_surf.get_height()
+
+            # Snap plugin to center if it is an Integrated Circuit
             if isinstance(plugin_obj, IntegratedCircuit):
                 plugin_pos = (plugin_rect.left, plugin_rect.centery)
             else:
                 plugin_pos = (plugin_rect.centerx - plugin_size[0]/2, plugin_rect.centery - plugin_size[1]/2)
+
+            # Draw plugin
             surface.blit(plugin_surf, plugin_pos)
+
+            # Check if the plugin is hovered with the mouse
             if not len(self.env.query_disable) or self.env.query_disable == [plugin_rect]:
                 scaled_topleft = tuple(map(lambda i, j, k: (i*j)+k, plugin_pos, scale, real_pos))
                 plugin_surf_rect = plugin_surf.get_rect(topleft=scaled_topleft)
@@ -404,17 +461,26 @@ class Breadboard(Part):
                 else:
                     if plugin_rect in self.env.query_disable:
                         self.env.query_disable.remove(plugin_rect)
+
+            # If there is a volatile switch that is not pressed, make sure it is off
             if not pygame.mouse.get_pressed()[0]:
                 if isinstance(plugin_obj, Switch):
                     if not plugin_obj.latch:
                         plugin_obj.state = 0
+
+            # Draw an outline if the plugin is selected
             if self.env.selected == plugin_obj:
                 pygame.draw.rect(surface, COL_SELECTED, plugin_surf.get_rect(topleft=plugin_pos), width=math.floor(4 / scale[0]))
+
+        # Check if the breadboard is hovered
         if not len(self.env.query_disable) or incomplete_wire:
+
             surface_rect = self.texture.get_rect().copy()
             surface_rect.w *= scale[0]
             surface_rect.h *= scale[1]
             surface_rect.topleft = real_pos
+
+            # Find a hovered point
             for rect_group in [self.main_board_rects, self.pr_rects]:
                 for coord in rect_group:
                     pygame.draw.circle(surface, COL_BREADBOARD_HOLE, rect_group[coord][0].center, self.radius)
@@ -427,16 +493,22 @@ class Breadboard(Part):
                         if r.collidepoint(pygame.mouse.get_pos()):
                             rect_hovered = rect_group[coord][2]
                             pygame.draw.rect(surface, COL_BLACK, rect_group[coord][0])
+
+            # Draw an outline around breadboard if hovered
             if surface_rect.collidepoint(pygame.mouse.get_pos()):
                 pygame.draw.rect(surface, COL_SELECTED, self.texture.get_rect(), width=2)
                 if pygame.mouse.get_pressed()[0] and rect_hovered is None and not incomplete_wire:
                     self.env.selected = self
+
+        # Draw an outline around breadboard if selected
         if self.env.selected == self:
             pygame.draw.rect(surface, COL_SELECTED, self.texture.get_rect(), width=4)
+
         return surface, rect_hovered
 
 
 class BreadboardPoint:
+    """A structure denoting an individual point on a breadboard, which may be common to a rail"""
 
     def __init__(self, parent, discriminator, common, rect):
         self.parent = parent
@@ -446,6 +518,7 @@ class BreadboardPoint:
 
 
 class BreadboardRail(Node):
+    """A structure denoting a set of points on a breadboard that are electrically connected"""
 
     def __init__(self, rail_discriminator):
         super().__init__()
@@ -453,6 +526,7 @@ class BreadboardRail(Node):
 
 
 class PluginPart(Part):
+    """A type of part which must be plugged into a breadboard"""
 
     def __init__(self, name, desc, texture, preview_texture, env):
         super().__init__(name, desc, texture, preview_texture, env)
@@ -463,6 +537,8 @@ class PluginPart(Part):
 
 
 class LED(PluginPart):
+    """The LED is a structure containing details about where the positive and negative terminals are connected, the
+    colour of the light, if the light is functioning and its state"""
 
     def __init__(self, name, desc, texture, preview_texture, on_colour, off_colour, env, anode_point=None, cathode_point=None):
         super().__init__(name, desc, texture, preview_texture, env)
@@ -482,20 +558,33 @@ class LED(PluginPart):
         """Restore state from the unpickled state values."""
         self.__init__(*state[:-2], pygame.env, anode_point=state[-2], cathode_point=state[-1])
 
+    # Draw the LED
     def surface(self, hovered_board):
+
         inch_tenth = hovered_board.inch_tenth
+
+        # Prepare the surface
         surface = pygame.Surface((inch_tenth*2, inch_tenth*2))
         surface.set_colorkey((0, 0, 0))
+
+        # Draw the bulb
         pygame.draw.circle(surface, self.off_colour, surface.get_rect().center, inch_tenth)
+
+        # If it is dead, draw an X on it
         if not self.alive:
             pygame.draw.line(surface, COL_FAKE_BLACK, (0, 0), (inch_tenth*2, inch_tenth*2), width=10)
             pygame.draw.line(surface, COL_FAKE_BLACK, (inch_tenth*2, 0), (0, inch_tenth*2), width=10)
+
+        # Otherwise if it is on, draw the light
         elif self.state:
             pygame.draw.circle(surface, self.on_colour, surface.get_rect().center, math.floor(3*(inch_tenth/4)))
+
         return surface, None
 
 
 class IntegratedCircuit(PluginPart):
+    """The integrated circuit is a structure containing the number of points it occupies, the related subcircuit
+    raw SPICE data and any relevant documentation."""
 
     def __init__(self, name, desc, texture, preview_texture, dip_count, raw_spice, spice_nodes, datasheet_img, env, pin_map=None):
         super().__init__(name, desc, texture, preview_texture, env)
@@ -515,14 +604,24 @@ class IntegratedCircuit(PluginPart):
         """Restore state from the unpickled state values."""
         self.__init__(*state[:-1], pygame.env, pin_map=state[-1])
 
+    # Return a surface containing the integrated circuit and its labels
     def draw(self, inch_tenth, radius, gap):
+
+        # Prepare the surface and text handlers
         win = pygame.Surface(((self.dip_count/2)*inch_tenth, gap+inch_tenth))
         handler = TextHandler(self.env, 'Play-Regular.ttf', radius*4)
         pin_handler = TextHandler(self.env, 'Play-Regular.ttf', math.floor(radius*1.5))
+
+        # Render the label
         label = handler.render(self.name)
         win.set_colorkey((0, 0, 0))
+
+        # Draw the DIP chassis
         rect = pygame.Rect(0, radius, win.get_width(), win.get_height()-(2*radius))
         pygame.draw.rect(win, COL_IC_LID, rect)
+
+        # For each pin, draw a smaller rectangle corresponding to the breadboard point
+        # Also draw a label showing the purpose of the pin
         for i in range(self.dip_count):
             if i < self.dip_count/2:
                 r = pygame.Rect((inch_tenth/2) - (radius/2) + (inch_tenth*i), win.get_height()-radius, radius, radius)
@@ -534,9 +633,13 @@ class IntegratedCircuit(PluginPart):
                 pygame.draw.rect(win, COL_IC_PIN, r)
                 r_label = pin_handler.render(self.spice_nodes[i])
                 win.blit(r_label, (r.centerx - (r_label.get_width()/2), r.bottom))
+
+        # Draw the label
         win.blit(label, (win.get_width()/2 - label.get_width()/2, win.get_height()/2 - label.get_height()/2))
+
         return win
 
+    # Return a surface containing the integrated circuit and its labels
     def surface(self, hovered_board):
         main_board_config = hovered_board.main_board_config
         inch_tenth, radius = hovered_board.inch_tenth, hovered_board.radius
@@ -546,6 +649,8 @@ class IntegratedCircuit(PluginPart):
 
 
 class Switch(IntegratedCircuit):
+    """The switch structure contains the type of switch and acts as an integrated circuit so that it uses the
+    same rules when connecting to a breadboard"""
 
     def __init__(self, name, desc, texture, preview_texture, dip_count, raw_spice, spice_nodes, latch, datasheet_img, env, pin_map=None):
         super().__init__(name, desc, texture, preview_texture, dip_count, raw_spice, spice_nodes, datasheet_img, env, pin_map=pin_map)
@@ -555,22 +660,36 @@ class Switch(IntegratedCircuit):
 
     def __getstate__(self):
         """Return state values to be pickled."""
-        return self.name, self.desc, self.texture_name, self.preview_texture_name, self.dip_count, self.raw_spice, self.spice_nodes, self.latch, self.datasheet_file, self.pins_to_nodes
+        return self.name, self.desc, self.texture_name, self.preview_texture_name, self.dip_count, self.raw_spice, \
+            self.spice_nodes, self.latch, self.datasheet_file, self.pins_to_nodes
 
     def __setstate__(self, state):
         """Restore state from the unpickled state values."""
         self.__init__(*state[:-1], pygame.env, pin_map=state[-1])
 
+    # Return a surface containing the switch
     def draw(self, inch_tenth, radius, gap):
+
+        # Prepare the surface
         win = pygame.Surface(((self.dip_count/2)*inch_tenth, gap+inch_tenth))
         win.set_colorkey((0, 0, 0))
+
+        # Draw the switch body
         rect = pygame.Rect(0, radius, win.get_width(), win.get_height()-(2*radius))
         pygame.draw.rect(win, COL_SWITCH, rect)
+
+        # Draw the switch shaft
         switch_shaft = pygame.Rect(rect.centerx - rect.w*3/8, rect.centery - rect.h*1/5, rect.w*3/4, rect.h*2/5)
         pygame.draw.rect(win, COL_SWITCH_SHAFT, switch_shaft)
+
+        # Draw the switch
         switch = pygame.Rect((rect.centerx - rect.w*3/8) + (self.state*rect.w*3/8), rect.centery - rect.h*1/5, rect.w*3/8, rect.h*2/5)
         pygame.draw.rect(win, (1, 1, 1), switch)
+
+        # Draw the switch indicator
         pygame.draw.circle(win, COL_WHITE, switch.center, switch.w/4)
+
+        # Draw the pins without labels
         for i in range(self.dip_count):
             if i < self.dip_count/2:
                 r = pygame.Rect((inch_tenth/2) - (radius/2) + (inch_tenth*i), win.get_height()-radius, radius, radius)
@@ -578,4 +697,5 @@ class Switch(IntegratedCircuit):
             else:
                 r = pygame.Rect((win.get_width() - (inch_tenth / 2)) - (radius/2) - (inch_tenth * (i-(self.dip_count/2))), 0, radius, radius)
                 pygame.draw.rect(win, COL_IC_PIN, r)
+
         return win
